@@ -1,0 +1,12 @@
+--- arch/arm/kernel/smp.c
++++ arch/arm/kernel/smp.c
+@@ -456,7 +454,9 @@
+ 
+ 	if (local_timer_ack()) {
+ 		__inc_irq_stat(cpu, local_timer_irqs);
++		irq_enter();
+ 		ipi_timer();
++		irq_exit();
+ 	}
+ 
+ 	set_irq_regs(old_regs);
