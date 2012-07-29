@@ -1,0 +1,19 @@
+--- mm/vmscan.c
++++ mm/vmscan.c
+@@ -250,6 +250,7 @@
+ 		unsigned long long delta;
+ 		unsigned long total_scan;
+ 		unsigned long max_pass;
++		int shrink_ret = 0;
+ 
+ 		max_pass = do_shrinker_shrink(shrinker, shrink, 0);
+ 		delta = (4 * nr_pages_scanned) / shrinker->seeks;
+@@ -296,6 +300,8 @@
+ 		}
+ 
+ 		shrinker->nr += total_scan;
++		trace_mm_shrink_slab_end(shrinker, shrink_ret, total_scan,
++					 shrinker->nr);
+ 	}
+ 	up_read(&shrinker_rwsem);
+ out:
