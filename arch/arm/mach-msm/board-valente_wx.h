@@ -1,0 +1,264 @@
+/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#ifndef __ARCH_ARM_MACH_MSM_BOARD_VALENTE_WX_H
+#define __ARCH_ARM_MACH_MSM_BOARD_VALENTE_WX_H
+
+#include <mach/irqs.h>
+#include <mach/rpm-regulator.h>
+#include <linux/mfd/pm8xxx/pm8921.h>
+
+/* Macros assume PMIC GPIOs and MPPs start at 1 */
+#define PM8921_GPIO_BASE		NR_GPIO_IRQS
+#define PM8921_GPIO_PM_TO_SYS(pm_gpio)	(pm_gpio - 1 + PM8921_GPIO_BASE)
+#define PM8921_MPP_BASE			(PM8921_GPIO_BASE + PM8921_NR_GPIOS)
+#define PM8921_MPP_PM_TO_SYS(pm_gpio)	(pm_gpio - 1 + PM8921_MPP_BASE)
+#define PM8921_IRQ_BASE			(NR_MSM_IRQS + NR_GPIO_IRQS)
+
+#define VALENTE_WX_LAYOUTS			{\
+		{ { 0,  1, 0}, {-1,  0,  0}, {0, 0,  1} }, \
+		{ { 0, -1, 0}, { 1,  0,  0}, {0, 0, -1} }, \
+		{ {-1,  0, 0}, { 0, -1,  0}, {0, 0,  1} }, \
+		{ {-1,  0, 0}, { 0,  0, -1}, {0, 1,  0} }  \
+					}
+
+extern struct platform_device msm8960_device_ext_5v_vreg __devinitdata;
+extern struct platform_device msm8960_device_ext_l2_vreg __devinitdata;
+extern struct platform_device msm8960_device_rpm_regulator __devinitdata;
+
+extern struct pm8xxx_regulator_platform_data
+	msm_pm8921_regulator_pdata[] __devinitdata;
+
+extern int msm_pm8921_regulator_pdata_len __devinitdata;
+
+#define GPIO_VREG_ID_EXT_5V		0
+#define GPIO_VREG_ID_EXT_L2		1
+#define GPIO_VREG_ID_EXT_3P3V           2
+
+#define GPIO(x)			(x)
+#define PMGPIO(x)		(x)
+
+#define VALENTE_WX_LCD_TE			GPIO(0)
+#define VALENTE_WX_CPRM_RSTz		GPIO(1)
+#define VALENTE_WX_CPRM_UVSEL		GPIO(2)
+#define VALENTE_WX_V_TP_3V3_EN		GPIO(3)
+#define VALENTE_WX_CAM_MCLK1		GPIO(4)
+#define VALENTE_WX_CAM_MCLK0		GPIO(5)
+#define VALENTE_WX_NC_GPIO_6		GPIO(6)
+#define VALENTE_WX_TP_ATTz			GPIO(7)
+#define VALENTE_WX__1SEG_I2C_SDA		GPIO(8)
+#define VALENTE_WX__1SEG_I2C_SCL		GPIO(9)
+#define VALENTE_WX_FEL_RFS			GPIO(10)
+#define VALENTE_WX_RESOUTz_CONTROL		GPIO(11)
+#define VALENTE_WX_FEL_CEN			GPIO(12)
+#define VALENTE_WX_FEL_CON			GPIO(13)
+#define VALENTE_WX_AUD_1WIRE_DO		GPIO(14)
+#define VALENTE_WX_AUD_1WIRE_DI		GPIO(15)
+#define VALENTE_WX_TP_I2C_SDA		GPIO(16)
+#define VALENTE_WX_TP_I2C_SCL		GPIO(17)
+#define VALENTE_WX_TP_RSTz			GPIO(18)
+#define VALENTE_WX_USB_ID1			GPIO(19)
+#define VALENTE_WX_CAM_I2C_SDA		GPIO(20)
+#define VALENTE_WX_CAM_I2C_SCL		GPIO(21)
+#define VALENTE_WX_FEL_RX			GPIO(22)
+#define VALENTE_WX_FEL_TX			GPIO(23)
+#define VALENTE_WX_FEL_INT			GPIO(24)
+#define VALENTE_WX_FEL_PON			GPIO(25)
+#define VALENTE_WX_WCN_FM_SSBI		GPIO(26)
+#define VALENTE_WX_WCN_FM_DATA		GPIO(27)
+#define VALENTE_WX_WCN_BT_STB		GPIO(28)
+#define VALENTE_WX_WCN_BT_DATA		GPIO(29)
+#define VALENTE_WX_UIM1_DATA_MSM		GPIO(30)
+#define VALENTE_WX_UIM1_CLK_MSM_1		GPIO(31)
+#define VALENTE_WX_TORCH_FLASHz		GPIO(32)
+#define VALENTE_WX_DRIVER_EN		GPIO(33)
+#define VALENTE_WX_UART_TX			GPIO(34)
+#define VALENTE_WX_UART_RX			GPIO(35)
+#define VALENTE_WX_MC_I2C_SDA		GPIO(36)
+#define VALENTE_WX_MC_I2C_SCL		GPIO(37)
+#define VALENTE_WX_RIVA_RX			GPIO(38)
+#define VALENTE_WX_MHL_INT			GPIO(39)
+#define VALENTE_WX_MHL_RSTz		GPIO(40)
+#define VALENTE_WX_WIMAX_EXT_RSTz		GPIO(41)
+#define VALENTE_WX_SIR_TX			GPIO(42)
+#define VALENTE_WX_SIR_RX			GPIO(43)
+#define VALENTE_WX_SR_I2C_SDA		GPIO(44)
+#define VALENTE_WX_SR_I2C_SCL		GPIO(45)
+#define VALENTE_WX_PWR_KEY_MSMz 		GPIO(46)
+#define VALENTE_WX_MAIN_CAM_ID		GPIO(47)
+#define VALENTE_WX_LCD_RSTz		GPIO(48)
+#define VALENTE_WX_CAM_VCM_PD		GPIO(49)
+#define VALENTE_WX__1SEG_INTz		GPIO(50)
+#define VALENTE_WX_RAW_RSTN		GPIO(51)
+#define VALENTE_WX_RAW_INTR0		GPIO(52)
+#define VALENTE_WX_SIR_SD			GPIO(53)
+#define VALENTE_WX_REGION_ID		GPIO(54)
+#define VALENTE_WX_NC_GPIO_55		GPIO(55)
+#define VALENTE_WX_NC_GPIO_56		GPIO(56)
+#define VALENTE_WX__3G_PA_EN		GPIO(57)
+#define VALENTE_WX_RAW_INTR1		GPIO(58)
+#define VALENTE_WX_AUD_WCD_MCLK_CPU	GPIO(59)
+#define VALENTE_WX_AUD_WCD_SB_CLK_CPU	GPIO(60)
+#define VALENTE_WX_AUD_WCD_SB_DATA		GPIO(61)
+#define VALENTE_WX_AUD_WCD_INTR_OUT	GPIO(62)
+#define VALENTE_WX_V_CAM2IO_1V8_EN		GPIO(63)
+#define VALENTE_WX_V_1SEG_1V2_EN		GPIO(64)
+#define VALENTE_WX_V_BOOST_5V_EN		GPIO(65)
+#define VALENTE_WX_CPRM_PWR_ON		GPIO(66)
+#define VALENTE_WX_GSENSOR_INT		GPIO(67)
+#define VALENTE_WX_CAM2_RSTz		GPIO(68)
+#define VALENTE_WX_GYRO_INT		GPIO(69)
+#define VALENTE_WX_COMPASS_INT		GPIO(70)
+#define VALENTE_WX_MCAM_SPI_DO		GPIO(71)
+#define VALENTE_WX_MCAM_SPI_DI		GPIO(72)
+#define VALENTE_WX_MCAM_SPI_CS0		GPIO(73)
+#define VALENTE_WX_MCAM_SPI_CLK		GPIO(74)
+#define VALENTE_WX_TS_CLK			GPIO(75)
+#define VALENTE_WX_TS_EN			GPIO(76)
+#define VALENTE_WX_TS_DATA			GPIO(77)
+#define VALENTE_WX_CAM2_STBz		GPIO(78)
+#define VALENTE_WX_CPUz_WIMAX_SW		GPIO(79)
+#define VALENTE_WX_MHL_USBz_SEL		GPIO(80)
+#define VALENTE_WX_CPRM_IRQz		GPIO(81)
+#define VALENTE_WX_TS_SYNC			GPIO(82)
+#define VALENTE_WX_WCN_BT_SSBI		GPIO(83)
+#define VALENTE_WX_WCN_CMD_DATA2		GPIO(84)
+#define VALENTE_WX_WCN_CMD_DATA1		GPIO(85)
+#define VALENTE_WX_WCN_CMD_DATA0		GPIO(86)
+#define VALENTE_WX_WCN_CMD_SET		GPIO(87)
+#define VALENTE_WX_WCN_CMD_CLK		GPIO(88)
+#define VALENTE_WX_WIMAX_SDIO_D0		GPIO(89)
+#define VALENTE_WX_WIMAX_SDIO_D1		GPIO(90)
+#define VALENTE_WX_WIMAX_SDIO_D2		GPIO(91)
+#define VALENTE_WX_WIMAX_SDIO_D3		GPIO(92)
+#define VALENTE_WX_V_MHL_3V3_EN		GPIO(93)
+#define VALENTE_WX_MBAT_IN			GPIO(94)
+#define VALENTE_WX_V_CAM_D1V2_EN		GPIO(95)
+#define VALENTE_WX_MHL_USB_ENz		GPIO(96)
+#define VALENTE_WX_WIMAX_SDIO_CMD		GPIO(97)
+#define VALENTE_WX_WIMAX_SDIO_CLK_CPU	GPIO(98)
+#define VALENTE_WX_NC_GPIO_99		GPIO(99)
+#define VALENTE_WX_HDMI_DDC_CLK		GPIO(100)
+#define VALENTE_WX_HDMI_DDC_DATA		GPIO(101)
+#define VALENTE_WX_HDMI_HPD		GPIO(102)
+#define VALENTE_WX_PM_SEC_INTz		GPIO(103)
+#define VALENTE_WX_PM_USR_INTz		GPIO(104)
+#define VALENTE_WX_PM_MDM_INTz		GPIO(105)
+#define VALENTE_WX_CPRM_CLK_EN		GPIO(106)
+#define VALENTE_WX_CAP_ATTz_CPU		GPIO(107)
+#define VALENTE_WX_PS_HOLD_CPU		GPIO(108)
+#define VALENTE_WX_NC_GPIO_109		GPIO(109)
+#define VALENTE_WX_NC_GPIO_110		GPIO(110)
+#define VALENTE_WX_PRX_LB_SW_SEL		GPIO(111)
+#define VALENTE_WX_BOOT_CONFIG_6		GPIO(112)
+#define VALENTE_WX_NC_GPIO_113		GPIO(113)
+#define VALENTE_WX_NC_GPIO_114		GPIO(114)
+#define VALENTE_WX_NC_GPIO_115		GPIO(115)
+#define VALENTE_WX_ANT_SW_SEL3		GPIO(116)
+#define VALENTE_WX_ANT_SW_SEL2		GPIO(117)
+#define VALENTE_WX_ANT_SW_SEL1		GPIO(118)
+#define VALENTE_WX_ANT_SW_SEL0		GPIO(119)
+#define VALENTE_WX_NC_GPIO_120		GPIO(120)
+#define VALENTE_WX_NC_GPIO_121		GPIO(121)
+#define VALENTE_WX_PA0_R0			GPIO(122)
+#define VALENTE_WX_PA0_R1			GPIO(123)
+#define VALENTE_WX_NC_GPIO_124		GPIO(124)
+#define VALENTE_WX_WTR_RF_ON		GPIO(125)
+#define VALENTE_WX_NC_GPIO_126		GPIO(126)
+#define VALENTE_WX_TZ_AGC_ADJ_CPU		GPIO(127)
+#define VALENTE_WX_NC_GPIO_128		GPIO(128)
+#define VALENTE_WX_NC_GPIO_129		GPIO(129)
+#define VALENTE_WX_NC_GPIO_130		GPIO(130)
+#define VALENTE_WX_NC_GPIO_131		GPIO(131)
+#define VALENTE_WX_NC_GPIO_132		GPIO(132)
+#define VALENTE_WX_PA_ON3_MODE		GPIO(133)
+#define VALENTE_WX_NC_GPIO_133          GPIO(133)
+#define VALENTE_WX_PA_ON2_HB_EN		GPIO(134)
+#define VALENTE_WX_NC_GPIO_134          GPIO(134)
+#define VALENTE_WX_NC_GPIO_135		GPIO(135)
+#define VALENTE_WX_PA_ON0_GSMLB		GPIO(136)
+#define VALENTE_WX_EXT_GPS_LNA_EN		GPIO(137)
+#define VALENTE_WX_NC_GPIO_138		GPIO(138)
+#define VALENTE_WX_NC_GPIO_139		GPIO(139)
+#define VALENTE_WX_NC_GPIO_140		GPIO(140)
+#define VALENTE_WX_NC_GPIO_141		GPIO(141)
+#define VALENTE_WX_WTR_SSBI_PRX_DRX	GPIO(142)
+#define VALENTE_WX_WTR_SSBI_TX_GNSS	GPIO(143)
+#define VALENTE_WX_NC_GPIO_144		GPIO(144)
+#define VALENTE_WX_NC_GPIO_145		GPIO(145)
+#define VALENTE_WX_GP_DATA2		GPIO(146)
+#define VALENTE_WX_GP_DATA1		GPIO(147)
+#define VALENTE_WX_GP_DATA0		GPIO(148)
+#define VALENTE_WX_NC_GPIO_149		GPIO(149)
+#define VALENTE_WX_NC_GPIO_150		GPIO(150)
+#define VALENTE_WX_NC_GPIO_151		GPIO(151)
+
+#define VALENTE_WX_PMGPIO_CAP_SENSOR_INTz		PMGPIO(1)
+#define VALENTE_WX_CAM_PWDN		PMGPIO(2)
+#define VALENTE_WX_AUD_HSMIC_BIAS_2V85_EN	PMGPIO(3)
+#define VALENTE_WX_NC_PMGPIO_4		PMGPIO(4)
+#define VALENTE_WX__1SEG_FM_ANT		PMGPIO(4)
+#define VALENTE_WX__1SEG_RSTz		PMGPIO(5)
+#define VALENTE_WX__1SEG_EN		PMGPIO(6)
+#define VALENTE_WX_PM_AUD_1WIRE_DO		PMGPIO(7)
+#define VALENTE_WX_PM_AUD_1WIRE_O		PMGPIO(8)
+#define VALENTE_WX_FELICA_CEN		PMGPIO(9)
+#define VALENTE_WX_FELICA_LOCK		PMGPIO(10)
+#define VALENTE_WX_PM_TP_RSTz			PMGPIO(11)
+#define VALENTE_WX_PMGPIO_CAP_RST		PMGPIO(12)
+#define VALENTE_WX_VOL_UPz			PMGPIO(13)
+#define VALENTE_WX_VOL_DOWNz		PMGPIO(14)
+#define VALENTE_WX_AUD_REMO_PRESz		PMGPIO(15)
+#define VALENTE_WX_PM_AUD_1WIRE_DI		PMGPIO(16)
+#define VALENTE_WX_PROXIMITY_INTz		PMGPIO(17)
+#define VALENTE_WX_AUD_SPK_SDz		PMGPIO(18)
+#define VALENTE_WX_FATAL_ERROR_IND		PMGPIO(19)
+#define VALENTE_WX_EARPHONE_DETz		PMGPIO(20)
+#define VALENTE_WX_NC_PMGPIO_21		PMGPIO(21)
+#define VALENTE_WX__1SEG_LNA_EN		PMGPIO(21)
+#define VALENTE_WX_NC_PMGPIO_22		PMGPIO(22)
+#define VALENTE_WX_SDC3_CDz		PMGPIO(23)
+#define VALENTE_WX_GREEN_LED		PMGPIO(24)
+#define VALENTE_WX_AMBER_LED		PMGPIO(25)
+#define VALENTE_WX_V_WIMAX_1V2_RF_EN	PMGPIO(26)
+#define VALENTE_WX_UIM_RST			PMGPIO(27)
+#define VALENTE_WX_NC_PMGPIO_28		PMGPIO(28)
+#define VALENTE_WX_UIM1_CLK_MSM		PMGPIO(29)
+#define VALENTE_WX_UIM_CLK			PMGPIO(30)
+#define VALENTE_WX_NC_PMGPIO_31		PMGPIO(31)
+#define VALENTE_WX_NC_PMGPIO_32		PMGPIO(32)
+#define VALENTE_WX_LCD_ID0			PMGPIO(33)
+#define VALENTE_WX_AUD_CODEC_RSTz		PMGPIO(34)
+#define VALENTE_WX_LCD_ID1			PMGPIO(35)
+#define VALENTE_WX_V_WIMAX_PVDD_EN		PMGPIO(36)
+#define VALENTE_WX_V_WIMAX_DVDD_EN		PMGPIO(37)
+#define VALENTE_WX_NC_PMGPIO_38		PMGPIO(38)
+#define VALENTE_WX_SSBI_PMIC_FCLK		PMGPIO(39)
+#define VALENTE_WX_NC_PMGPIO_40		PMGPIO(40)
+#define VALENTE_WX_AUD_LEVEL_SHIFTER_EN		PMGPIO(40)
+#define VALENTE_WX_NC_PMGPIO_41		PMGPIO(41)
+#define VALENTE_WX_V_RAW_1V2_EN		PMGPIO(42)
+#define VALENTE_WX_WIMAX_SLEEP_CLK		PMGPIO(43)
+#define VALENTE_WX_V_RAW_1V8_EN		PMGPIO(44)
+
+extern struct regulator_init_data msm_saw_regulator_pdata_s5;
+extern struct regulator_init_data msm_saw_regulator_pdata_s6;
+
+extern struct rpm_regulator_platform_data msm_rpm_regulator_pdata __devinitdata;
+
+int __init valente_wx_init_keypad(void);
+int __init valente_wx_gpiomux_init(void);
+
+#ifdef CONFIG_MMC_MSM_SDC2_SUPPORT
+int __init valente_wx_init_mmc(void);
+#endif
+#endif
