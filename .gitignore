@@ -81,3 +81,6 @@ GTAGS
 \#*#
 output/*
 make*.log
+
+*.log
+out
