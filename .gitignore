@@ -79,3 +79,6 @@ GTAGS
 *.orig
 *~
 \#*#
+
+*.log
+out
