@@ -1,0 +1,20 @@
+[make memo]
+
+
+$ make valente_wx_defconfig
+$ make 
+
+cp "*.ko" to <boot.img-ramdisk>/system/lib/module/
+cp arch/arm/boot/zImage ./
+
+run repack-bootimg.pl
+"repack-bootimg.pl zImage <boot.img-ramdisk> <output file>"
+
+ ex)
+ $ repack-bootimg.pl zImage boot.img-ramdisk boot-new.img
+
+test boot
+
+ $ fastboot boot boot-new.img
+ 
+

@@ -1,0 +1,9 @@
+sakuramilkさんにkernelを最新までcommitして貰ったので、
+記念buildです。
+
+FUTURE
+・kernel version from 3.0.8 upto 3.0.39
+・enable Automatic process group scheduling (CONFIG_SCHED_AUTOGROUP=y)
+・enable USB host + USB OTG (動作未確認、要電源供給)
+・enable smartassV2 Governor (defaultのOnDemandが優秀かも)
+
