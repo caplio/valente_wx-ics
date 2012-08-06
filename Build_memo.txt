@@ -1,6 +1,5 @@
 [make memo]
 
-
 $ make valente_wx_defconfig
 $ make 
 
@@ -18,3 +17,27 @@ test boot
  $ fastboot boot boot-new.img
  
 
+-----------------------------------------------
+buildのmemoです
+
+最初にクロスコンパイラへのPATHを通しておきます。
+
+例）
+$ cat .bashrc 
+PATH=~/prebuilt/linux-x86/toolchain/arm-eabi-4.4.3/bin:$PATH
+
+make valente_wx_defconfigでconfigをmakeします。
+その後、変更したければmake menuconfigなどで弄って下さい。
+
+設定が終わったら、makeでbuildします。
+エラーなく最後まで走れば、arch/arm/boot/zImage が作成されます。
+
+これを、ramdiskとくっつければ完成です。
+
+例）
+$ find -name '*.ko' -exec cp -av {} ./boot.img-ramdisk/system/lib/module \;
+$ repack-bootimg.pl arch/arm/boot/zImage ./boot.img-ramdisk ./output/boot.img
+
+configなどを弄ったらmake cleanしてからmakeし直しが良いでしょう。
+https://pub.slateblue.tk/memo/day2297.html　にも少し書いたので、
+こちらも見てみて下さい。
