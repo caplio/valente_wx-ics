@@ -235,10 +235,6 @@ static int __cpuinit msm_cpufreq_init(struct cpufreq_policy *policy)
 	init_completion(&cpu_work->complete);
 #endif
 
-#ifdef CONFIG_MSM_USE_UNDERCLOCK
-       policy->min = 192000;
-#endif
-
 	return 0;
 }
 
