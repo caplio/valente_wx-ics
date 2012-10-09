@@ -175,3 +175,10 @@
 /dev/felica_int        0444   felicaclient   felicaclient
 /dev/felica_int_poll   0400   felicaclient   felicaclient
 /dev/felica_uid        0222   felicaclient   felicaclient
+
+# irda
+/dev/ttyHSL2              0666   irda      irda
+
+# HtcCarGPS
+/dev/ttyHSUSB1                                 0600    system  system
+

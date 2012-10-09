@@ -33,9 +33,9 @@ on emmc
     mount ext4 emmc@system /system ro barrier=1
     devwait emmc@userdata
 #   exec /system/bin/e2fsck -p emmc@userdata
-    mount ext4 emmc@userdata /data nosuid nodev barrier=1 noauto_da_alloc discard
-    mount ext4 emmc@cache /cache nosuid nodev barrier=1 discard
-    mount ext4 emmc@devlog /devlog nosuid nodev barrier=1 discard
+    mount ext4 emmc@userdata /data nosuid nodev barrier=1 noauto_da_alloc
+    mount ext4 emmc@cache /cache nosuid nodev barrier=1
+    mount ext4 emmc@devlog /devlog nosuid nodev barrier=1
 
     mkdir /vendor               0771 system system
     mkdir /vendor/firmware      0771 system system
@@ -91,14 +91,10 @@ on boot
     setprop wifi.interface wlan0
     setprop net.tcp.buffersize.wimax   4096,1398102,2097152,4096,16384,110208
 
-
-    # Assign the default TCP buffer
-    write /proc/sys/net/core/rmem_default  393216
-
     # Assign TCP buffer thresholds to be ceiling value of technology maximums
     # Increased technology maximums should be reflected here.
-    write /proc/sys/net/core/rmem_max  786432
-    write /proc/sys/net/core/wmem_max  3461120
+    write /proc/sys/net/core/rmem_max  262144
+    write /proc/sys/net/core/wmem_max  262144
 
     # Create the symlink to qcn wpa_supplicant folder for ar6000 wpa_supplicant
     mkdir /data/system 0775 system system
@@ -132,7 +128,7 @@ on boot
     chmod 4755 /system/bin/ip
 
     #Provide the access to hostapd.conf only to root and group
-    chmod 0660 /data/hostapd/hostapd.conf
+    chmod 0660 /data/misc/wifi/hostapd.conf
 
     #port-bridge
     chmod 0660 /dev/smd0
@@ -164,6 +160,9 @@ on boot
 	# Widevine DRM
 	chown drm system /dev/htcdrm
 	chmod 0660 /dev/htcdrm
+
+    # for camera to switch burst mode
+    chown media media /sys/devices/platform/msm_sdcc.1/burst
 
     #set G-Sensor and Compass permissions
     chown compass system /dev/akm8975_aot
@@ -217,6 +216,14 @@ on boot
     chown root sdcard_rw /sys/class/android_usb/f_mass_storage/lun0/opcode-e4/size
     chown root sdcard_rw /sys/class/android_usb/f_mass_storage/lun0/opcode-e4/update
 # [ADD START] 2012/01/17 KDDI : Android ICS
+
+
+    # Discretix DRM change start
+    mkdir /data/DxDrm
+    mkdir /data/DxDrm/fuse
+    chmod 555 /data/DxDrm
+    mkdir /sdcard/download
+    # Discretix DRM change end
 
 # HTC SSD Battery - BEGIN
 # for RIL to notify battery driver talking and network_search state
@@ -568,6 +575,16 @@ on property:ro.data.large_tcp_window_size=true
     # Adjust socket buffer to enlarge TCP receive window for high bandwidth (e.g. DO-RevB)
     write /proc/sys/net/ipv4/tcp_adv_win_scale  1
 
+service time_daemon /system/bin/time_daemon
+    user root
+    group root
+    oneshot
+    disabled
+
+on property:persist.timed.enable=true
+    mkdir /data/time/ 0700
+    start time_daemon
+
 service ftp /system/bin/sdptool add --handle=0x1ff20 --psm=5257 --channel=20 FTP
     user bluetooth
     group bluetooth net_bt_admin
@@ -610,6 +627,10 @@ service ril-daemon1 /system/bin/rild -c 1
     user root
     disabled
     group radio cache inet misc audio sdcard_rw qcom_oncrpc diag
+
+# Discretix DRM change start
+service dx_drm_server /system/bin/DxDrmServerIpc -f -o allow_other /data/DxDrm/fuse
+    class main
 
 service profiler_daemon /system/bin/profiler_daemon
     user root
