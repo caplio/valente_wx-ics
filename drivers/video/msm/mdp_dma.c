@@ -478,8 +478,11 @@ static void mdp_dma2_update_sub(struct msm_fb_data_type *mfd)
 void mdp_dma2_update(struct msm_fb_data_type *mfd)
 #endif
 {
+	if (!mfd)
+		return;
+
 	down(&mfd->dma->mutex);
-	if ((mfd) && (!mfd->dma->busy) && (mfd->panel_power_on)) {
+	if ((!mfd->dma->busy) && (mfd->panel_power_on)) {
 		down(&mfd->sem);
 		mfd->ibuf_flushed = TRUE;
 		mdp_dma2_update_lcd(mfd);
@@ -523,7 +526,10 @@ void mdp_set_dma_pan_info(struct fb_info *info, struct mdp_dirty_region *dirty,
 
 	down(&mfd->sem);
 	iBuf = &mfd->ibuf;
-	iBuf->buf = (uint8 *) info->fix.smem_start;
+	if (mfd->map_buffer)
+		iBuf->buf = (uint8 *)mfd->map_buffer->iova[0];
+	else
+		iBuf->buf = (uint8 *) info->fix.smem_start;
 	iBuf->buf += info->var.xoffset * bpp +
 			info->var.yoffset * info->fix.line_length;
 

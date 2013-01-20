@@ -24,8 +24,11 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/gpio.h>
+#include <linux/workqueue.h>
 
-#define CY8C_I2C_RETRY_TIMES 10
+#define CY8C_I2C_RETRY_TIMES 	(10)
+#define CY8C_KEYLOCKTIME    	(1500)
+#define CY8C_KEYLOCKRESET	(6)
 
 struct cy8c_cs_data {
 	struct i2c_client *client;
@@ -43,16 +46,18 @@ struct cy8c_cs_data {
 	int *keycode;
 	int (*power)(int on);
 	int (*reset)(void);
+	int func_support;
+	struct workqueue_struct *wq_raw;
+	struct delayed_work work_raw;
 };
 
 static struct cy8c_cs_data *private_cs;
 
 static irqreturn_t cy8c_cs_irq_handler(int, void *);
 static int disable_key;
-/*static uint8_t didac[9] = {0x8, 0x8, 0x8, 0x8, 0xF, 0xF, 0xFF, 0xFF, 0xFF};*/
-/*static uint8_t dthd[9] = {0x20, 0x20, 0x20, 0x20, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};*/
+static int reset_cnt; /*Reset counter*/
 
-extern int board_mfg_mode(void);
+extern int board_build_flag(void);
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void cy8c_cs_early_suspend(struct early_suspend *h);
 static void cy8c_cs_late_resume(struct early_suspend *h);
@@ -196,23 +201,11 @@ static ssize_t show_flag(struct device *dev, struct device_attribute *attr,
 }
 static DEVICE_ATTR(diskey, (S_IWUSR|S_IRUGO), show_flag, stop_report);
 
-static ssize_t inform(struct device *dev, struct device_attribute *attr, char *buf)
+static int cy8c_printcs_raw(struct cy8c_cs_data *cs, char *buf)
 {
 	int ret = 0, pos = 0, i, j, cmd[4] = {CS_CMD_BTN1, CS_CMD_BTN2, CS_CMD_BTN3, CS_CMD_BTN4};
 	char data[6] = {0}, capstate[3][10] = {"BL", "Raw", "Dlt"};
-	struct cy8c_cs_data *cs;
 
-	cs = private_cs;
-
-	if (cs->id.version >= 0x86) {
-		memset(data, 0, sizeof(ARRAY_SIZE(data)));
-		ret = i2c_cy8c_read(cs->client, CS_INT_STATUS, data, 2);
-		if (ret < 0) {
-			pr_err("[cap] i2c Read inform INT status Err\n");
-			return ret;
-		}
-		pos += sprintf(buf+pos, "Btn code = %x, INT status= %x\n", data[0], data[1]);
-	}
 	for (i = 0; i < cs->id.config; i++) {
 		ret = i2c_cy8c_write_byte_data(cs->client, CS_SELECT, cmd[i]);
 		if (ret < 0) {
@@ -232,6 +225,30 @@ static ssize_t inform(struct device *dev, struct device_attribute *attr, char *b
 		pos += sprintf(buf+pos, "\n");
 		memset(data, 0, sizeof(ARRAY_SIZE(data)));
 	}
+	return pos;
+}
+
+static ssize_t inform(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int ret = 0, pos = 0;
+	char data[2] = {0};
+	struct cy8c_cs_data *cs;
+
+	cs = private_cs;
+
+	if (cs->id.version < 0x10 && cs->id.version > 0x08)
+		cs->id.version = cs->id.version << 4;
+
+	if (cs->id.version >= 0x86) {
+		memset(data, 0, sizeof(ARRAY_SIZE(data)));
+		ret = i2c_cy8c_read(cs->client, CS_INT_STATUS, data, 2);
+		if (ret < 0) {
+			pr_err("[cap] i2c Read inform INT status Err\n");
+			return ret;
+		}
+		pos += sprintf(buf+pos, "Btn code = %x, INT status= %x\n", data[0], data[1]);
+	}
+	pos += cy8c_printcs_raw(cs, buf+pos);
 
 	return pos;
 }
@@ -382,6 +399,28 @@ static void cy8c_touchkey_sysfs_deinit(void)
 	sysfs_remove_file(android_touchkey_kobj, &dev_attr_diskey.attr);
 	kobject_del(android_touchkey_kobj);
 }
+static void cy8c_rawdata_print(struct work_struct *work)
+{
+	char buf[150] = {0};
+	int pos = 0;
+	struct cy8c_cs_data *cs = container_of(work, struct cy8c_cs_data,
+					       work_raw.work);
+	pos += cy8c_printcs_raw(cs, buf+pos);
+	pos = strlen(buf)+1;
+	pr_info("[cap]%s\n", buf);
+
+	if (cs->vk_id) {
+		reset_cnt++;
+		if (reset_cnt % CY8C_KEYLOCKRESET == 0) {
+			pr_info("[cap] keylock reset\n");
+			cs->reset();
+			reset_cnt = 0;
+			cs->vk_id = 0;/*Reset & Stop print out raw data*/
+		}
+		queue_delayed_work(cs->wq_raw, &cs->work_raw,
+				   msecs_to_jiffies(CY8C_KEYLOCKTIME-500));
+	}
+}
 
 static int cy8c_init_sensor(struct cy8c_cs_data *cs, struct cy8c_i2c_cs_platform_data *pdata)
 {
@@ -429,7 +468,8 @@ err_fw_get_fail:
 
 static void report_key_func(struct cy8c_cs_data *cs, uint8_t vk)
 {
-	if ((cs->debug_level & 0x01) || 1 == board_mfg_mode())
+	int ret = 0;
+	if ((cs->debug_level & 0x01) || board_build_flag() > 0)
 		pr_info("[cap] vk = %x\n", vk);
 
 	if (vk) {
@@ -472,6 +512,17 @@ static void report_key_func(struct cy8c_cs_data *cs, uint8_t vk)
 		cs->vk_id = 0;
 	}
 	input_sync(cs->input_dev);
+
+	if (cs->func_support & CS_FUNC_PRINTRAW) {
+		if (cs->vk_id) {
+			queue_delayed_work(cs->wq_raw, &cs->work_raw,
+					   msecs_to_jiffies(CY8C_KEYLOCKTIME));
+		} else {
+			ret = cancel_delayed_work_sync(&cs->work_raw);
+			if (!ret)
+				cancel_delayed_work(&cs->work_raw);
+		}
+	}
 }
 
 static void cy8c_cs_work_func(struct work_struct *work)
@@ -555,7 +606,7 @@ static int cy8c_cs_probe(struct i2c_client *client,
 
 	if (cy8c_init_sensor(cs, pdata) < 0) {
 		pr_err("[cap_err] init failure, not probe up driver\n");
-		goto err_input_dev_alloc_failed;
+		goto err_init_sensor_failed;
 	}
 	if (pdata) {
 		if (pdata->id.config != cs->id.config) {
@@ -577,11 +628,12 @@ static int cy8c_cs_probe(struct i2c_client *client,
 		printk(KERN_ERR "[cap_err] Failed to allocate input device\n");
 		goto err_input_dev_alloc_failed;
 	}
-	cs->input_dev->name = "cy8c-touchkey";
+	cs->input_dev->name       = "cy8c-touchkey";
 	cs->input_dev->id.product = cs->id.chipid;
 	cs->input_dev->id.version = cs->id.version;
-	cs->keycode         = pdata->keycode;
-	cs->reset           = pdata->reset;
+	cs->func_support          = pdata->func_support;
+	cs->keycode               = pdata->keycode;
+	cs->reset                 = pdata->reset;
 
 	set_bit(EV_SYN, cs->input_dev->evbit);
 	set_bit(EV_KEY, cs->input_dev->evbit);
@@ -604,6 +656,25 @@ static int cy8c_cs_probe(struct i2c_client *client,
 
 	private_cs = cs;
 
+	if (cs->func_support & CS_FUNC_PRINTRAW) {
+		pr_info("[cap]support_keylock(%x)\n", cs->func_support);
+		cs->wq_raw = create_singlethread_workqueue("CY8C_print_rawdata");
+		if (!cs->wq_raw) {
+			pr_err("[cap]allocate cy8c_cs_print_rawdata failed\n");
+			ret = -ENOMEM;
+			goto err_input_register_device_failed;
+		}
+		INIT_DELAYED_WORK(&cs->work_raw, cy8c_rawdata_print);
+	}
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	cs->early_suspend.level   = EARLY_SUSPEND_LEVEL_STOP_DRAWING;
+	cs->early_suspend.suspend = cy8c_cs_early_suspend;
+	cs->early_suspend.resume  = cy8c_cs_late_resume;
+	register_early_suspend(&cs->early_suspend);
+#endif
+	cy8c_touchkey_sysfs_init();
+
 	cs->use_irq = 1;
 	if (client->irq && cs->use_irq) {
 		ret = request_irq(client->irq, cy8c_cs_irq_handler,
@@ -622,13 +693,6 @@ static int cy8c_cs_probe(struct i2c_client *client,
 		cs->timer.function = cy8c_cs_timer_func;
 		hrtimer_start(&cs->timer, ktime_set(1, 0), HRTIMER_MODE_REL);
 	}
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	cs->early_suspend.level   = EARLY_SUSPEND_LEVEL_STOP_DRAWING;
-	cs->early_suspend.suspend = cy8c_cs_early_suspend;
-	cs->early_suspend.resume  = cy8c_cs_late_resume;
-	register_early_suspend(&cs->early_suspend);
-#endif
-	cy8c_touchkey_sysfs_init();
 
 	return 0;
 
@@ -636,6 +700,8 @@ err_input_register_device_failed:
 	input_free_device(cs->input_dev);
 
 err_input_dev_alloc_failed:
+	destroy_workqueue(cs->cy8c_wq);
+err_init_sensor_failed:
 err_create_wq_failed:
 	kfree(cs);
 
@@ -665,6 +731,12 @@ static int cy8c_cs_suspend(struct i2c_client *client, pm_message_t mesg)
 	struct cy8c_cs_data *cs = i2c_get_clientdata(client);
 
 	pr_info("[cap] %s\n", __func__);
+
+	if (cs->func_support & CS_FUNC_PRINTRAW) {
+		ret = cancel_delayed_work_sync(&cs->work_raw);
+		if (!ret)
+			cancel_delayed_work(&cs->work_raw);
+	}
 	if (client->irq && cs->use_irq) {
 		disable_irq(client->irq);
 		ret = cancel_work_sync(&cs->work);

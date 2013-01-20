@@ -532,11 +532,11 @@ u32 bam_check_irq_source(void *base, u32 ee, u32 mask)
 		status = bam_read_reg(base, IRQ_STTS);
 		bam_write_reg(base, IRQ_CLR, status);
 		if (printk_ratelimit()) {
-			if (status & IRQ_STTS_BAM_ERROR_IRQ) {
+			if (status & IRQ_STTS_BAM_ERROR_IRQ)
 				SPS_ERR("sps:bam 0x%x(va);bam irq status="
 					"0x%x.\nsps: BAM_ERROR_IRQ\n",
 					(u32) base, status);
-			} else
+			else
 				SPS_INFO("sps:bam 0x%x(va);bam irq status="
 					"0x%x.", (u32) base, status);
 		}

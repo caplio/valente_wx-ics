@@ -108,15 +108,19 @@ static int suspend_prepare(void)
 
 	suspend_footprint = 8;
 	error = suspend_freeze_processes();
-	suspend_footprint = 0;
+	suspend_footprint = 9;
 	if (!error)
 		return 0;
-
+	suspend_footprint = 91;
 	suspend_thaw_processes();
+	suspend_footprint = 92;
 	usermodehelper_enable();
+	suspend_footprint = 93;
  Finish:
 	pm_notifier_call_chain(PM_POST_SUSPEND);
+	suspend_footprint = 61;
 	pm_restore_console();
+	suspend_footprint = 62;
 	return error;
 }
 
@@ -150,7 +154,7 @@ static int suspend_enter(suspend_state_t state)
 
 	error = dpm_suspend_noirq(PMSG_SUSPEND);
 	if (error) {
-		printk(KERN_ERR "PM: Some devices failed to power down\n");
+		printk(KERN_ERR "[K] PM: Some devices failed to power down\n");
 		goto Platform_finish;
 	}
 
@@ -221,7 +225,7 @@ int suspend_devices_and_enter(suspend_state_t state)
 	suspend_test_start();
 	error = dpm_suspend_start(PMSG_SUSPEND);
 	if (error) {
-		printk(KERN_ERR "PM: Some devices failed to suspend\n");
+		printk(KERN_ERR "[K] PM: Some devices failed to suspend\n");
 		goto Recover_platform;
 	}
 	suspend_test_finish("suspend devices");
@@ -257,8 +261,11 @@ int suspend_devices_and_enter(suspend_state_t state)
 static void suspend_finish(void)
 {
 	suspend_thaw_processes();
+	suspend_footprint = 15;
 	usermodehelper_enable();
+	suspend_footprint = 16;
 	pm_notifier_call_chain(PM_POST_SUSPEND);
+	suspend_footprint = 17;
 	pm_restore_console();
 }
 
@@ -289,18 +296,22 @@ int enter_state(suspend_state_t state)
 	error = suspend_prepare();
 	if (error)
 		goto Unlock;
-
+	suspend_footprint = 10;
 	if (suspend_test(TEST_FREEZER))
 		goto Finish;
-
+	suspend_footprint = 11;
 	pr_debug("PM: Entering %s sleep\n", pm_states[state]);
 	pm_restrict_gfp_mask();
+	suspend_footprint = 12;
 	error = suspend_devices_and_enter(state);
+	suspend_footprint = 13;
 	pm_restore_gfp_mask();
+	suspend_footprint = 14;
 
  Finish:
 	pr_debug("PM: Finishing wakeup.\n");
 	suspend_finish();
+	suspend_footprint = 18;
  Unlock:
 	mutex_unlock(&pm_mutex);
 	return error;

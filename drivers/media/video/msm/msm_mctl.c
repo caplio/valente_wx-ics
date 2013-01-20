@@ -163,6 +163,12 @@ static int msm_get_sensor_info(struct msm_sync *sync,
 					MSM_CAMERA_FLASH_NONE;
 	info.use_rawchip = sdata->use_rawchip; /* HTC Angie 20111121 - Rawchip */
 
+	/* HTC_START_Simon.Ti_Liu_20120702_Enhance_bypass */
+	if (sdata->use_rawchip == RAWCHIP_ENABLE)
+		info.use_rawchip = RAWCHIP_ENABLE;/* HTC Angie 20120523 - Rawchip */
+	else
+		info.use_rawchip = RAWCHIP_DISABLE;
+	/* HTC_END */
 	/* copy back to user space */
 	if (copy_to_user((void *)arg,
 				&info,

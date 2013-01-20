@@ -712,7 +712,18 @@ struct sk_buff *sk_stream_alloc_skb(struct sock *sk, int size, gfp_t gfp)
 			skb_reserve(skb, skb_tailroom(skb) - size);
 			return skb;
 		}
-		__kfree_skb(skb);
+
+#ifdef CONFIG_HTC_NETWORK_MODIFY
+        if (IS_ERR(skb) || (!skb)) {
+		    printk(KERN_ERR "[NET] skb is NULL in %s!\n", __func__);
+	    }
+		else {
+		    __kfree_skb(skb);
+		}
+#else
+        __kfree_skb(skb);
+#endif
+
 	} else {
 		sk->sk_prot->enter_memory_pressure(sk);
 		sk_stream_moderate_sndbuf(sk);
@@ -1917,7 +1928,17 @@ void tcp_close(struct sock *sk, long timeout)
 		u32 len = TCP_SKB_CB(skb)->end_seq - TCP_SKB_CB(skb)->seq -
 			  tcp_hdr(skb)->fin;
 		data_was_unread += len;
-		__kfree_skb(skb);
+
+#ifdef CONFIG_HTC_NETWORK_MODIFY
+        if (IS_ERR(skb) || (!skb)) {
+		    printk(KERN_ERR "[NET] skb is NULL in %s!\n", __func__);
+	    }
+		else {
+		    __kfree_skb(skb);
+		}
+#else
+        __kfree_skb(skb);
+#endif
 	}
 
 	sk_mem_reclaim(sk);

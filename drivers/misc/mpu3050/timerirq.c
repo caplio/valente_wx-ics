@@ -42,6 +42,9 @@
 #include "mltypes.h"
 #include "timerirq.h"
 
+#define INITIAL_TIMERS_PERIOD     67
+#define INITIAL_QUICK_EVENT_COUNT 10
+
 /* function which gets timer data and sends it to TIMER */
 struct timerirq_data {
 	int pid;
@@ -54,6 +57,7 @@ struct timerirq_data {
 	wait_queue_head_t timerirq_wait;
 	struct timer_list timer;
 	struct miscdevice *dev;
+	unsigned int event_num;
 };
 
 static struct miscdevice *timerirq_dev_data;
@@ -77,11 +81,18 @@ static void timerirq_handler(unsigned long arg)
 
 	wake_up_interruptible(&data->timerirq_wait);
 
-	if (data->run)
-		mod_timer(&data->timer,
-			jiffies + msecs_to_jiffies(data->period));
-	else
+	if (data->run) {
+		if (data->event_num >= INITIAL_QUICK_EVENT_COUNT)
+			mod_timer(&data->timer,
+				jiffies + msecs_to_jiffies(data->period));
+		else if (data->event_num < INITIAL_QUICK_EVENT_COUNT)
+			mod_timer(&data->timer,
+				jiffies + msecs_to_jiffies(INITIAL_TIMERS_PERIOD));
+	} else {
 		complete(&data->timer_done);
+	}
+
+	data->event_num++;
 }
 
 static int start_timerirq(struct timerirq_data *data)
@@ -112,7 +123,7 @@ static int start_timerirq(struct timerirq_data *data)
 	data->data_ready = FALSE;
 
 	return mod_timer(&data->timer,
-			jiffies + msecs_to_jiffies(data->period));
+			jiffies + msecs_to_jiffies(1));
 }
 
 static int stop_timerirq(struct timerirq_data *data)
@@ -131,6 +142,7 @@ static int stop_timerirq(struct timerirq_data *data)
 
 	if (data->run) {
 		data->run = FALSE;
+		data->event_num = 0;
 		mod_timer(&data->timer, jiffies + 1);
 		wait_for_completion(&data->timer_done);
 
@@ -163,6 +175,8 @@ static int timerirq_open(struct inode *inode, struct file *file)
 
 	init_completion(&data->timer_done);
 	setup_timer(&data->timer, timerirq_handler, (unsigned long)data);
+
+	data->event_num = 0;
 
 	printk(KERN_DEBUG "[TIMERIRQ]%s: current->pid %d\n",
 		__func__, current->pid);

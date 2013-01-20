@@ -37,6 +37,9 @@
 #define DIAG_IOCTL_GET_DELAYED_RSP_ID 	8
 #define DIAG_IOCTL_LSM_DEINIT		9
 
+/* HTC: process request non-blocking IO */
+#define DIAG_IOCTL_NONBLOCKING_TIMEOUT	64
+
 /* Machine ID and corresponding PC Tools IDs */
 #define APQ8060_MACHINE_ID	86
 #define AO8960_MACHINE_ID	87
@@ -598,5 +601,18 @@ static const uint32_t msg_bld_masks_18[] = {
 #define LOG_15	0x0
 
 #define LOG_GET_ITEM_NUM(xx_code) (xx_code & 0x0FFF)
+
+/* HTC: re-define message level to prevent system treat it as fatal */
+#ifdef pr_err
+#undef pr_err
+#endif
+#define pr_err(fmt, args...) \
+	printk(KERN_WARNING pr_fmt(fmt), ## args)
+
+#ifdef pr_alert
+#undef pr_alert
+#endif
+#define pr_alert(fmt, args...) \
+	printk(KERN_WARNING pr_fmt(fmt), ## args)
 
 #endif

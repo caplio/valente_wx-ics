@@ -75,9 +75,11 @@ static struct wake_lock alarm_rtc_wake_lock;
 static struct platform_device *alarm_platform_dev;
 struct alarm_queue alarms[ANDROID_ALARM_TYPE_COUNT];
 static bool suspended;
-#ifdef HTC_QUICKBOOT_OFFMODE_ALARM
+
+#ifdef CONFIG_HTC_QUICKBOOT_OFFMODE_ALARM
 int htc_is_offalarm_enabled(void);
 #endif
+
 static void update_timer_locked(struct alarm_queue *base, bool head_removed)
 {
 	struct alarm *alarm;
@@ -473,7 +475,7 @@ static int alarm_suspend(struct platform_device *pdev, pm_message_t state)
 	}
 	return err;
 }
-#ifdef HTC_QUICKBOOT_OFFMODE_ALARM
+#ifdef CONFIG_HTC_QUICKBOOT_OFFMODE_ALARM
 /* return the nearest alarm tiem */
 static int find_offmode_alarm(void)
 {
@@ -590,7 +592,7 @@ static struct class_interface rtc_alarm_interface = {
 static struct platform_driver alarm_driver = {
 	.suspend = alarm_suspend,
 	.resume = alarm_resume,
-#ifdef HTC_QUICKBOOT_OFFMODE_ALARM
+#ifdef CONFIG_HTC_QUICKBOOT_OFFMODE_ALARM
 	.shutdown = alarm_shutdown,
 #endif
 	.driver = {

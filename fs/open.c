@@ -891,6 +891,8 @@ void fd_install(unsigned int fd, struct file *file)
 	BUG_ON(fdt->fd[fd] != NULL);
 	rcu_assign_pointer(fdt->fd[fd], file);
 	file->record_pid = current->pid;
+	strncpy(file->record_comm, current->comm, 15);
+	file->record_comm[15] = '\0';
 	spin_unlock(&files->file_lock);
 }
 

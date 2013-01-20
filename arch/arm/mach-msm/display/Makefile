@@ -9,3 +9,4 @@ obj-$(CONFIG_MACH_SHOOTER) += shooter-panel.o
 obj-$(CONFIG_MACH_HOLIDAY) += holiday-panel.o
 obj-$(CONFIG_MACH_ELITE_ULK) += board-elite_ulk-panel.o
 obj-$(CONFIG_MACH_JEL_DD) += board-jel_dd-panel.o
+obj-$(CONFIG_MACH_EVITA_UTL) += board-evita_utl-panel.o

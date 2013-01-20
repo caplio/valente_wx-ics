@@ -284,13 +284,13 @@ static int gpio_keypad_request_irqs(struct gpio_kp *kp)
 		err = request_irq(irq, gpio_keypad_irq_handler, request_flags,
 				  "gpio_kp", kp);
 		if (err) {
-			KEY_LOGE("gpiomatrix: request_irq failed for input %d, "
+			KEY_LOGE("KEY_ERR: gpiomatrix: request_irq failed for input %d, "
 				"irq %d\n", mi->input_gpios[i], irq);
 			goto err_request_irq_failed;
 		}
 		err = enable_irq_wake(irq);
 		if (err) {
-			KEY_LOGE("gpiomatrix: set_irq_wake failed for input %d, "
+			KEY_LOGE("KEY_ERR: gpiomatrix: set_irq_wake failed for input %d, "
 				"irq %d\n", mi->input_gpios[i], irq);
 		}
 		disable_irq(irq);
@@ -330,7 +330,7 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 		   mi->input_gpios == NULL ||
 		   mi->output_gpios == NULL) {
 			err = -ENODEV;
-			KEY_LOGE("gpiomatrix: Incomplete pdata\n");
+			KEY_LOGE("KEY_ERR: gpiomatrix: Incomplete pdata\n");
 			goto err_invalid_platform_data;
 		}
 		key_count = mi->ninputs * mi->noutputs;
@@ -339,7 +339,7 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 				     BITS_TO_LONGS(key_count), GFP_KERNEL);
 		if (kp == NULL) {
 			err = -ENOMEM;
-			KEY_LOGE("gpiomatrix: Failed to allocate private data\n");
+			KEY_LOGE("KEY_ERR: gpiomatrix: Failed to allocate private data\n");
 			goto err_kp_alloc_failed;
 		}
 		kp->input_devs = input_devs;
@@ -349,7 +349,7 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 			unsigned short keycode = keyentry & MATRIX_KEY_MASK;
 			unsigned short dev = keyentry >> MATRIX_CODE_BITS;
 			if (dev >= input_devs->count) {
-				KEY_LOGE("gpiomatrix: bad device index %d >= "
+				KEY_LOGE("KEY_ERR: gpiomatrix: bad device index %d >= "
 					"%d for key code %d\n",
 					dev, input_devs->count, keycode);
 				err = -EINVAL;
@@ -367,12 +367,12 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 		for (i = 0; i < mi->noutputs; i++) {
 			err = gpio_request(mi->output_gpios[i], "gpio_kp_out");
 			if (err) {
-				KEY_LOGE("gpiomatrix: gpio_request failed for "
+				KEY_LOGE("KEY_ERR: gpiomatrix: gpio_request failed for "
 					"output %d\n", mi->output_gpios[i]);
 				goto err_request_output_gpio_failed;
 			}
 			if (gpio_cansleep(mi->output_gpios[i])) {
-				KEY_LOGE("gpiomatrix: unsupported output gpio %d,"
+				KEY_LOGE("KEY_ERR: gpiomatrix: unsupported output gpio %d,"
 					" can sleep\n", mi->output_gpios[i]);
 				err = -EINVAL;
 				goto err_output_gpio_configure_failed;
@@ -383,7 +383,7 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 			else
 				err = gpio_direction_input(mi->output_gpios[i]);
 			if (err) {
-				KEY_LOGE("gpiomatrix: gpio_configure failed for "
+				KEY_LOGE("KEY_ERR: gpiomatrix: gpio_configure failed for "
 					"output %d\n", mi->output_gpios[i]);
 				goto err_output_gpio_configure_failed;
 			}
@@ -391,13 +391,13 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 		for (i = 0; i < mi->ninputs; i++) {
 			err = gpio_request(mi->input_gpios[i], "gpio_kp_in");
 			if (err) {
-				KEY_LOGE("gpiomatrix: gpio_request failed for "
+				KEY_LOGE("KEY_ERR: gpiomatrix: gpio_request failed for "
 					"input %d\n", mi->input_gpios[i]);
 				goto err_request_input_gpio_failed;
 			}
 			err = gpio_direction_input(mi->input_gpios[i]);
 			if (err) {
-				KEY_LOGE("gpiomatrix: gpio_direction_input failed"
+				KEY_LOGE("KEY_ERR: gpiomatrix: gpio_direction_input failed"
 					" for input %d\n", mi->input_gpios[i]);
 				goto err_gpio_direction_input_failed;
 			}

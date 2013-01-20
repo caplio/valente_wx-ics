@@ -230,10 +230,16 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 	raw_spin_unlock(&irq_controller_lock);
 
 	for (i = find_first_bit(pending, gic->max_irq);
-	     i < gic->max_irq;
-	     i = find_next_bit(pending, gic->max_irq, i+1)) {
-		pr_warning("%s: %d triggered", __func__,
-					i + gic->irq_offset);
+		i < gic->max_irq;
+		i = find_next_bit(pending, gic->max_irq, i+1)) {
+		pr_warning("%s: %d triggered", __func__, i + gic->irq_offset);
+#if defined(CONFIG_ARCH_MSM8960)
+		if (TLMM_MSM_SUMMARY_IRQ != i + gic->irq_offset) {
+#endif
+			pr_warning("[WAKEUP] Resume caused by gic-%d\n", i + gic->irq_offset);
+#if defined(CONFIG_ARCH_MSM8960)
+		}
+#endif
 	}
 }
 
@@ -409,11 +415,13 @@ asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs)
 		irqnr = irqstat & ~0x1c00;
 
 		if (likely(irqnr > 15 && irqnr < 1021)) {
+			uncached_logk(LOGK_IRQ, (void *)irqnr);
 			irqnr = irq_domain_to_irq(&gic->domain, irqnr);
 			handle_IRQ(irqnr, regs);
 			continue;
 		}
 		if (irqnr < 16) {
+			uncached_logk(LOGK_IRQ, (void *)irqnr);
 			writel_relaxed(irqstat, cpu_base + GIC_CPU_EOI);
 #ifdef CONFIG_SMP
 			handle_IPI(irqnr, regs);

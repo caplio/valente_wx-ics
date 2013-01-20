@@ -30,6 +30,11 @@
 #include <mach/gpiomux.h>
 #include "mpm.h"
 #include <mach/pm.h>
+
+#if defined(CONFIG_ARCH_MSM8960)
+#define GPIO_PM_USR_INTz       (104)
+#endif
+
 /* Bits of interest in the GPIO_IN_OUT register.
  */
 enum {
@@ -312,7 +317,7 @@ static void msm_gpio_update_dual_edge_pos(struct irq_data *d, unsigned gpio)
 			return;
 		}
 	} while (loop_limit-- > 0);
-	pr_err("%s: dual-edge irq failed to stabilize, "
+	pr_err("[K] %s: dual-edge irq failed to stabilize, "
 	       "interrupts dropped. %#08x != %#08x\n",
 	       __func__, val, val2);
 }
@@ -496,7 +501,7 @@ static int __devinit msm_gpio_probe(void)
 	ret = request_irq(TLMM_MSM_SUMMARY_IRQ, msm_summary_irq_handler,
 			IRQF_TRIGGER_HIGH, "msmgpio", NULL);
 	if (ret) {
-		pr_err("Request_irq failed for TLMM_MSM_SUMMARY_IRQ - %d\n",
+		pr_err("[K] Request_irq failed for TLMM_MSM_SUMMARY_IRQ - %d\n",
 				ret);
 		return ret;
 	}
@@ -548,8 +553,14 @@ void msm_gpio_show_resume_irq(void)
 					BIT(INTR_STATUS_BIT);
 		if (intstat) {
 			irq = msm_gpio_to_irq(&msm_gpio.gpio_chip, i);
-			pr_warning("%s: %d triggered\n",
-				__func__, irq);
+			pr_warning("[K] %s: %d triggered\n", __func__, irq);
+#if defined(CONFIG_ARCH_MSM8960)
+			if(irq != GPIO_PM_USR_INTz + NR_MSM_IRQS) {
+#endif
+				pr_warning("[K][WAKEUP] Resume caused by msmgpio-%d\n", irq - NR_MSM_IRQS);
+#if defined(CONFIG_ARCH_MSM8960)
+			}
+#endif
 		}
 	}
 	spin_unlock_irqrestore(&tlmm_lock, irq_flags);
@@ -904,7 +915,7 @@ int msm_dump_gpios(struct seq_file *m, int curr_len, char *gpio_buffer)
 	if (m) {
 		seq_printf(m, "%s\n", title_msg);
 	} else {
-		pr_info("%s\n", title_msg);
+		pr_info("[K] %s\n", title_msg);
 		curr_len += sprintf(gpio_buffer + curr_len,
 		"%s\n", title_msg);
 	}
@@ -988,7 +999,7 @@ int msm_dump_gpios(struct seq_file *m, int curr_len, char *gpio_buffer)
 		if (m) {
 			seq_printf(m, "%s\n", list_gpio);
 		} else {
-			pr_info("%s\n", list_gpio);
+			pr_info("[K] %s\n", list_gpio);
 			curr_len += sprintf(gpio_buffer +
 			curr_len, "%s\n", list_gpio);
 		}

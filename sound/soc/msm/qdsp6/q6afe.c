@@ -21,6 +21,13 @@
 #include <sound/apr_audio.h>
 #include <sound/q6afe.h>
 
+//htc audio ++
+#undef pr_info
+#undef pr_err
+#define pr_info(fmt, ...) pr_aud_info(fmt, ##__VA_ARGS__)
+#define pr_err(fmt, ...) pr_aud_err(fmt, ##__VA_ARGS__)
+//htc audio --
+
 struct afe_ctl {
 	void *apr;
 	atomic_t state;
@@ -70,9 +77,17 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 					payload[0], payload[1]);
 		/* payload[1] contains the error status for response */
 		if (payload[1] != 0) {
+			//HTC_AUD +++
+			/* to avoid false alarm */
+			switch (payload[0]) {
+			case AFE_PORT_CMD_SIDETONE_CTL:
+				break;
+			//HTC_AUD ---
+			default:
 			atomic_set(&this_afe.status, -1);
 			pr_err("%s: cmd = 0x%x returned error = 0x%x\n",
 					__func__, payload[0], payload[1]);
+			}
 		}
 		if (data->opcode == APR_BASIC_RSP_RESULT) {
 			switch (payload[0]) {

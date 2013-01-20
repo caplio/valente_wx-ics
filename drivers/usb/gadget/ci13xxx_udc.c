@@ -2793,6 +2793,11 @@ static void ep_fifo_flush(struct usb_ep *ep)
 		return;
 	}
 
+	if (mEp->num == 0) {
+		/* the endpoint was not assigned, not to flush */
+		return;
+	}
+
 	spin_lock_irqsave(mEp->lock, flags);
 
 	dbg_event(_usb_addr(mEp), "FFLUSH", 0);
@@ -2886,6 +2891,22 @@ static int ci13xxx_pullup(struct usb_gadget *_gadget, int is_active)
 	return 0;
 }
 
+static int ci13xxx_request_reset(struct usb_gadget *_gadget)
+{
+	struct ci13xxx *udc = container_of(_gadget, struct ci13xxx, gadget);
+
+	if (((udc->udc_driver->flags & CI13XXX_PULLUP_ON_VBUS) &&
+			!udc->vbus_active) || !udc->driver || !udc->transceiver) {
+		return 0;
+	}
+
+	USBH_DEBUG("ci13xxx_request_reset\n");
+
+	otg_init(udc->transceiver);
+	hw_device_reset(udc);
+
+	return 0;
+}
 
 /**
  * Device operations part of the API to the USB controller hardware,
@@ -2897,6 +2918,7 @@ static const struct usb_gadget_ops usb_gadget_ops = {
 	.wakeup		= ci13xxx_wakeup,
 	.vbus_draw	= ci13xxx_vbus_draw,
 	.pullup		= ci13xxx_pullup,
+	.req_reset	= ci13xxx_request_reset,
 };
 
 /**

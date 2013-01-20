@@ -65,10 +65,10 @@ static void smsm_state_cb_hdlr(void *data, uint32_t old_state,
 		smsm_change_state_ssr(SMSM_APPS_STATE, SMSM_RESET, 0, KERNEL_FLAG_ENABLE_SSR_WCNSS);
 
 	riva_crash = true;
-	pr_err("%s: smsm state changed to smsm reset\n", MODULE_NAME);
+	pr_info("%s: smsm state changed to smsm reset\n", MODULE_NAME);
 
 	if (ss_restart_inprogress) {
-		pr_err("%s: Ignoring smsm reset req, restart in progress\n",
+		pr_info("%s: Ignoring smsm reset req, restart in progress\n",
 						MODULE_NAME);
 		return;
 	}
@@ -125,9 +125,9 @@ static void riva_post_bootup(struct work_struct *work)
 static int riva_shutdown(const struct subsys_data *subsys)
 {
 	pil_force_shutdown("wcnss");
-	pr_err("[SSR] pil_force_shutdown is finished\n");
+	pr_info("[SSR] pil_force_shutdown is finished\n");
 	flush_delayed_work(&cancel_vote_work);
-	pr_err("[SSR] flush_delayed_work(vote) for shutdown is finished\n");
+	pr_info("[SSR] flush_delayed_work(vote) for shutdown is finished\n");
 
 	return 0;
 }

@@ -29,6 +29,7 @@
 #include <mach/socinfo.h>
 #include <mach/restart.h>
 #include <mach/board_htc.h>
+#include <mach/system.h>
 
 #include "smd_private.h"
 #include "modem_notifier.h"
@@ -42,6 +43,14 @@ static int enable_modem_ssr = 1;
 #else
 static int enable_modem_ssr = 0;
 #endif
+
+static struct workqueue_struct *monitor_modem_hung_wq = NULL;
+static struct delayed_work monitor_modem_hung_worker;
+static void modem_is_hung(struct work_struct *work);
+#define HTC_SMEM_PARAM_BASE_ADDR				0x801F0000
+#define HTC_ERR_FATAL_HANDLER_MAGIC_OFFSET		0x5C
+#define HTC_ERR_FATAL_HANDLER_MAGIC				0x95425012
+static uint32_t *htc_err_fatal_handler_magic;
 
 static void modem_sw_fatal_fn(struct work_struct *work)
 {
@@ -62,6 +71,11 @@ static void modem_sw_fatal_fn(struct work_struct *work)
 		if (get_restart_level() == RESET_SOC)
 			ssr_set_restart_reason(
 				"modem fatal: Modem SW Watchdog Bite!");
+		if (monitor_modem_hung_wq && (*htc_err_fatal_handler_magic == HTC_ERR_FATAL_HANDLER_MAGIC)) {
+			pr_info("monitor_modem_hung_worker is un-scheduled and htc_err_fatal_handler_magic is cleared\n");
+			*htc_err_fatal_handler_magic = 0;
+			cancel_delayed_work(&monitor_modem_hung_worker);
+		}
 		subsystem_restart("modem");
 
 	} else if (modem_state & reset_smsm_states) {
@@ -75,6 +89,11 @@ static void modem_sw_fatal_fn(struct work_struct *work)
 		if (get_restart_level() == RESET_SOC)
 			ssr_set_restart_reason(
 				"modem fatal: Modem SW Watchdog Bite!");
+		if (monitor_modem_hung_wq && (*htc_err_fatal_handler_magic == HTC_ERR_FATAL_HANDLER_MAGIC)) {
+			pr_info("monitor_modem_hung_worker is un-scheduled and htc_err_fatal_handler_magic is cleared\n");
+			*htc_err_fatal_handler_magic = 0;
+			cancel_delayed_work(&monitor_modem_hung_worker);
+		}
 		subsystem_restart("modem");
 	}
 }
@@ -85,11 +104,30 @@ static void modem_fw_fatal_fn(struct work_struct *work)
 	if (get_restart_level() == RESET_SOC)
 		ssr_set_restart_reason(
 			"modem fatal: Modem FW Watchdog Bite!");
+	if (monitor_modem_hung_wq && (*htc_err_fatal_handler_magic == HTC_ERR_FATAL_HANDLER_MAGIC)) {
+		pr_info("monitor_modem_hung_worker is un-scheduled and htc_err_fatal_handler_magic is cleared\n");
+		*htc_err_fatal_handler_magic = 0;
+		cancel_delayed_work(&monitor_modem_hung_worker);
+	}
 	subsystem_restart("modem");
 }
 
 static DECLARE_WORK(modem_sw_fatal_work, modem_sw_fatal_fn);
 static DECLARE_WORK(modem_fw_fatal_work, modem_fw_fatal_fn);
+
+static void modem_is_hung(struct work_struct *work)
+{
+	if(get_radio_flag() & 0x8)
+	{
+		pr_info("Modem is hung and trigger oem-94\n");
+		arm_pm_restart(RESTART_MODE_LEGECY, "oem-94");
+	}
+	else
+	{
+		pr_info("Modem is hung and trigger modem SSR\n");
+		subsystem_restart("modem");
+	}
+}
 
 static void smsm_state_cb(void *data, uint32_t old_state, uint32_t new_state)
 {
@@ -101,12 +139,38 @@ static void smsm_state_cb(void *data, uint32_t old_state, uint32_t new_state)
 		pr_err("Modem SMSM state changed to SMSM_RESET.\n"
 			"Probable err_fatal on the modem. "
 			"Calling subsystem restart...\n");
+		if (monitor_modem_hung_wq && (*htc_err_fatal_handler_magic == HTC_ERR_FATAL_HANDLER_MAGIC)) {
+			pr_info("smsm_state_cb 0x%X -> 0x%X\n"
+				"monitor_modem_hung_worker is un-scheduled and htc_err_fatal_handler_magic is cleared\n", old_state, new_state);
+			*htc_err_fatal_handler_magic = 0;
+			cancel_delayed_work(&monitor_modem_hung_worker);
+		}
+
 		if (smd_smsm_erase_efs()) {
 			pr_err("Unrecoverable efs, need to reboot and erase"
 				"modem_st1/st2 partitions...\n");
 			arm_pm_restart(RESTART_MODE_ERASE_EFS, "force-hard");
 		} else {
 			subsystem_restart("modem");
+		}
+	}
+}
+
+static void smsm_state_cb1(void *data, uint32_t old_state, uint32_t new_state)
+{
+	pr_info("smsm_state_cb1 0x%X -> 0x%X\n", old_state, new_state);
+
+	if(new_state & SMSM_PRE_RESET) {
+		pr_err("Modem SMSM state changed to SMSM_PRE_RESET but clear modem SMSM_PRE_RESET first.\n");
+		smsm_change_state_ssr(SMSM_MODEM_STATE, SMSM_PRE_RESET, 0, KERNEL_FLAG_ENABLE_SSR_MODEM);
+		if (monitor_modem_hung_wq && (*htc_err_fatal_handler_magic == HTC_ERR_FATAL_HANDLER_MAGIC)) {
+			if(get_radio_flag() & 0x8)
+				pr_info("Wait for 3s to trigger oem-94 if modem is hung in err_fatal_handler\n"
+					"monitor_modem_hung_worker is scheduled and htc_err_fatal_handler_magic = 0x%X\n", *htc_err_fatal_handler_magic);
+			else
+				pr_info("Wait for 3s to trigger modem SSR if modem is hung in err_fatal_handler\n"
+					"monitor_modem_hung_worker is scheduled and htc_err_fatal_handler_magic = 0x%X\n", *htc_err_fatal_handler_magic);
+			queue_delayed_work(monitor_modem_hung_wq, &monitor_modem_hung_worker, msecs_to_jiffies(3000));
 		}
 	}
 }
@@ -319,6 +383,13 @@ static int __init modem_8960_init(void)
 		pr_err("%s: Unable to register SMSM callback! (%d)\n",
 				__func__, ret);
 
+	ret = smsm_state_cb_register(SMSM_MODEM_STATE, SMSM_PRE_RESET,
+		smsm_state_cb1, 0);
+
+	if (ret < 0)
+		pr_err("%s: Unable to register SMSM callback1! (%d)\n",
+				__func__, ret);
+
 	ret = request_irq(Q6FW_WDOG_EXPIRED_IRQ, modem_wdog_bite_irq,
 			IRQF_TRIGGER_RISING, "modem_wdog_fw", NULL);
 
@@ -381,6 +452,19 @@ static int __init modem_8960_init(void)
 	ret = modem_debugfs_init();
 
 	pr_info("%s: modem fatal driver init'ed.\n", __func__);
+
+	if (monitor_modem_hung_wq == NULL) {
+		/* Create private workqueue... */
+		monitor_modem_hung_wq = create_workqueue("monitor_modem_hung_wq");
+		printk(KERN_INFO "Create monitor modem hung workqueue(0x%x)...\n", (unsigned int)monitor_modem_hung_wq);
+	}
+
+	if (monitor_modem_hung_wq) {
+		pr_info("%s: INIT_DELAYED_WORK: monitor_modem_hung_worker\n", __func__);
+		INIT_DELAYED_WORK(&monitor_modem_hung_worker, modem_is_hung);
+	}
+
+	htc_err_fatal_handler_magic = (uint32_t *)ioremap(HTC_SMEM_PARAM_BASE_ADDR + HTC_ERR_FATAL_HANDLER_MAGIC_OFFSET, sizeof(uint32_t));
 out:
 	return ret;
 }

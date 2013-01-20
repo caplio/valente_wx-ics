@@ -23,18 +23,18 @@
 #if defined DEBUG
 
 #define MSM_BUS_DBG(msg, ...) \
-	printk(KERN_DEBUG "AXI: %s(): " msg, __func__, ## __VA_ARGS__)
+	printk(KERN_DEBUG "[K] AXI: %s(): " msg, __func__, ## __VA_ARGS__)
 
 #else
 #define MSM_BUS_DBG(msg, ...) no_printk("AXI")
 #endif
 
 #define MSM_BUS_ERR(msg, ...) \
-	printk(KERN_ERR "AXI: %s(): " msg, __func__, ## __VA_ARGS__)
+	printk(KERN_ERR "[K] AXI: %s(): " msg, __func__, ## __VA_ARGS__)
 #define MSM_BUS_WARN(msg, ...) \
-	printk(KERN_WARNING "AXI: %s(): " msg, __func__, ## __VA_ARGS__)
+	printk(KERN_WARNING "[K] AXI: %s(): " msg, __func__, ## __VA_ARGS__)
 #define MSM_FAB_ERR(msg, ...) \
-	dev_err(&fabric->fabdev.dev, "AXI: %s(): " msg, __func__, ## \
+	dev_err(&fabric->fabdev.dev, "[K] AXI: %s(): " msg, __func__, ## \
 	__VA_ARGS__)
 
 enum msm_bus_dbg_op_type {

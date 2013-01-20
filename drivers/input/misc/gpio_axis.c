@@ -146,8 +146,8 @@ int gpio_event_axis_func(struct gpio_event_input_devs *input_devs,
 		as->input_devs = input_devs;
 		as->info = ai;
 		if (ai->dev >= input_devs->count) {
-			KEY_LOGE("gpio_event_axis: bad device index %d >= %d "
-				"for %d:%d\n", ai->dev, input_devs->count,
+			KEY_LOGE("KEY_ERR: %s: bad device index %d >= %d "
+				"for %d:%d\n", __func__, ai->dev, input_devs->count,
 				ai->type, ai->code);
 			ret = -EINVAL;
 			goto err_bad_device_index;

@@ -57,7 +57,7 @@ inline void notify_modem_cache_flush_done(void);
 int check_in_panic(void);
 extern void send_q6_nmi(void);
 void msm_set_restart_mode(int mode);
-inline unsigned get_restart_reason(void);
+unsigned get_restart_reason(void);
 #else
 #define msm_set_restart_mode(mode)
 #endif

@@ -70,13 +70,6 @@ int mmc_attach_mmc(struct mmc_host *host);
 int mmc_attach_sd(struct mmc_host *host);
 int mmc_attach_sdio(struct mmc_host *host);
 
-#ifdef CONFIG_MMC_CPRM_SUPPORT
-/* For [3 party] tony */
-int mmc_sd_get_card_info(struct mmc_card *card);
-int mmc_sd_read_sd_status(struct mmc_card *card);
-/* 2012-03-26 */
-#endif
-
 /* Module parameters */
 extern int use_spi_crc;
 

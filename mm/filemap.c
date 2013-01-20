@@ -44,6 +44,7 @@
 
 #include <asm/mman.h>
 
+#include <trace/events/mmcio.h>
 /*
  * Shared mappings implemented 30.11.1994. It's not fully working yet,
  * though.
@@ -1092,6 +1093,7 @@ static void do_generic_file_read(struct file *filp, loff_t *ppos,
 	unsigned long offset;      /* offset into pagecache page */
 	unsigned int prev_offset;
 	int error;
+	int trace = 0;
 
 	index = *ppos >> PAGE_CACHE_SHIFT;
 	prev_index = ra->prev_pos >> PAGE_CACHE_SHIFT;
@@ -1109,6 +1111,7 @@ static void do_generic_file_read(struct file *filp, loff_t *ppos,
 find_page:
 		page = find_get_page(mapping, index);
 		if (!page) {
+			trace = 1;
 			page_cache_sync_readahead(mapping,
 					ra, filp,
 					index, last_index - index);
@@ -1117,6 +1120,7 @@ find_page:
 				goto no_cached_page;
 		}
 		if (PageReadahead(page)) {
+			trace = 1;
 			page_cache_async_readahead(mapping,
 					ra, filp, page,
 					index, last_index - index);
@@ -1295,6 +1299,8 @@ out:
 
 	*ppos = ((loff_t)index << PAGE_CACHE_SHIFT) + offset;
 	file_accessed(filp);
+	if (trace)
+		trace_readahead_exit(filp);
 }
 
 int file_read_actor(read_descriptor_t *desc, struct page *page,
@@ -1673,6 +1679,8 @@ retry_find:
 		page_cache_release(page);
 		return ret | VM_FAULT_RETRY;
 	}
+	if (ret == VM_FAULT_MAJOR)
+		trace_readahead_exit(file);
 
 	/* Did it get truncated? */
 	if (unlikely(page->mapping != mapping)) {

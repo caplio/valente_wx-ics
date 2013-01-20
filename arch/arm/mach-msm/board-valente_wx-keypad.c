@@ -48,17 +48,11 @@ static struct gpio_event_direct_entry valente_wx_keypad_map[] = {
 static uint32_t matirx_inputs_gpio_table[] = {
 	GPIO_CFG(VALENTE_WX_PWR_KEY_MSMz, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_UP,
 		 GPIO_CFG_2MA),
-	GPIO_CFG(VALENTE_WX_VOL_DOWNz, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_UP,
-		 GPIO_CFG_2MA),
-	GPIO_CFG(VALENTE_WX_VOL_UPz, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_UP,
-		 GPIO_CFG_2MA),
 };
 
 static void valente_wx_direct_inputs_gpio(void)
 {
 	gpio_tlmm_config(matirx_inputs_gpio_table[0], GPIO_CFG_ENABLE);
-	gpio_tlmm_config(matirx_inputs_gpio_table[1], GPIO_CFG_ENABLE);
-	gpio_tlmm_config(matirx_inputs_gpio_table[2], GPIO_CFG_ENABLE);
 
 	return;
 }

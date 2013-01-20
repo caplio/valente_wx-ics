@@ -56,14 +56,14 @@ static void radio_hci_smd_recv_event(unsigned long temp)
 	while (len) {
 		skb = alloc_skb(len, GFP_ATOMIC);
 		if (!skb) {
-			FMDERR("Memory not allocated for the socket");
+			PR_FM_ERR("Memory not allocated for the socket");
 			return;
 		}
 
 		buf = kmalloc(len, GFP_ATOMIC);
 		if (!buf) {
 			kfree_skb(skb);
-			FMDERR("Error in allocating buffer memory");
+			PR_FM_ERR("Error in allocating buffer memory");
 			return;
 		}
 
@@ -87,7 +87,7 @@ static int radio_hci_smd_send_frame(struct sk_buff *skb)
 
 	len = smd_write(hs.fm_channel, skb->data, skb->len);
 	if (len < skb->len) {
-		FMDERR("Failed to write Data %d", len);
+		PR_FM_ERR("Failed to write Data %d", len);
 		kfree_skb(skb);
 		return -ENODEV;
 	}
@@ -104,11 +104,11 @@ static void send_disable_event(struct work_struct *worker)
 
 	skb = alloc_skb(len, GFP_ATOMIC);
 	if (!skb) {
-		FMDERR("Memory not allocated for the socket");
+		PR_FM_ERR("Memory not allocated for the socket");
 		return;
 	}
 
-	FMDERR("FM INSERT DISABLE Rx Event");
+	PR_FM_INFO("FM INSERT DISABLE Rx Event");
 
 	memcpy(skb_put(skb, len), buf, len);
 
@@ -124,7 +124,7 @@ static void radio_hci_smd_notify_cmd(void *data, unsigned int event)
 	struct radio_hci_dev *hdev = hs.hdev;
 
 	if (!hdev) {
-		FMDERR("Frame for unknown HCI device (hdev=NULL)");
+		PR_FM_WARNING("Frame for unknown HCI device (hdev=NULL)");
 		return;
 	}
 
@@ -137,7 +137,7 @@ static void radio_hci_smd_notify_cmd(void *data, unsigned int event)
 	case SMD_EVENT_CLOSE:
 		reset_worker = kzalloc(sizeof(*reset_worker), GFP_ATOMIC);
 		if (!reset_worker) {
-			FMDERR("Out of memory");
+			PR_FM_ERR("Out of memory");
 			break;
 		}
 		INIT_WORK(reset_worker, send_disable_event);
@@ -165,14 +165,14 @@ static int radio_hci_smd_register_dev(struct radio_data *hsmd)
 		&hsmd->fm_channel, hdev, radio_hci_smd_notify_cmd);
 
 	if (rc < 0) {
-		FMDERR("Cannot open the command channel");
+		PR_FM_ERR("Cannot open the command channel");
 		return -ENODEV;
 	}
 
 	smd_disable_read_intr(hsmd->fm_channel);
 
 	if (radio_hci_register_dev(hdev) < 0) {
-		FMDERR("Can't register HCI device");
+		PR_FM_ERR("Can't register HCI device");
 		return -ENODEV;
 	}
 

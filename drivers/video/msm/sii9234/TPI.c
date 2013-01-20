@@ -45,6 +45,7 @@ static int rsenCount = 0;
 static int WR_Dcap_Rdy_Int_Done = false;/* new in V100109 */
 static bool IsEstablished = false;/* new in V100109 */
 extern bool g_bProbe;
+extern bool disable_interswitch;
 extern u8 dbg_drv_str_a3, dbg_drv_str_on;
 
 
@@ -454,24 +455,26 @@ static void WriteInitialRegisterValues(void)
 		I2C_WriteByte(TPI_SLAVE_ADDR, 0x95, 0x35);
 	else
 		I2C_WriteByte(TPI_SLAVE_ADDR, 0x95, 0x31); */
-
-	I2C_WriteByte(TPI_SLAVE_ADDR, 0x95, 0x71); /*  mw20110925 match w/ v100109 */
+	if(!disable_interswitch)
+		I2C_WriteByte(TPI_SLAVE_ADDR, 0x95, 0x71); /*  mw20110925 match w/ v100109 */
 
 	I2C_WriteByte(TPI_SLAVE_ADDR, 0x97, 0x00);
 
 	/* ReadModifyWriteTPI(0x95, BIT_6, BIT_6);  mw20110922 match w v100108 ; Force USB ID switch to open */
 
-	WriteByteTPI(0x92, 0x86);
-	WriteByteTPI(0x93, 0x8C);
+	if(!disable_interswitch) {
+		WriteByteTPI(0x92, 0x86);
+		WriteByteTPI(0x93, 0x8C);
+	}
 
 
 	ReadModifyWriteTPI(0x79, BIT_5 | BIT_4, BIT_4);
 
 	DelayMS(25);
-	ReadModifyWriteTPI(0x95, BIT_6, 0x00);
-
-	I2C_WriteByte(TPI_SLAVE_ADDR, 0x90, 0x27);
-
+	if(!disable_interswitch) {
+		ReadModifyWriteTPI(0x95, BIT_6, 0x00);
+		I2C_WriteByte(TPI_SLAVE_ADDR, 0x90, 0x27);
+	}
 	/*  mw20110925 match w/ v100109
 		mw20110922 match v100108 to pass CTS 3.3.5.3 & 3.3.7.1
 	CbusReset();*/
@@ -568,22 +571,21 @@ void SetHDCPStatus(bool Status)
 
 static void ForceUsbIdSwitchOpen(void)
 {
-	I2C_WriteByte(TPI_SLAVE_ADDR, 0x90, 0x26);
-	ReadModifyWriteTPI(0x95, BIT_6, BIT_6);
-
-	WriteByteTPI(0x92, 0x86);
-
-	ReadModifyWriteTPI(0x79, BIT_5 | BIT_4, BIT_4);
-
+	if(!disable_interswitch) {
+		I2C_WriteByte(TPI_SLAVE_ADDR, 0x90, 0x26);
+		ReadModifyWriteTPI(0x95, BIT_6, BIT_6);
+		WriteByteTPI(0x92, 0x86);
+		ReadModifyWriteTPI(0x79, BIT_5 | BIT_4, BIT_4);
+	}
 }
 
 static void ReleaseUsbIdSwitchOpen(void)
 {
-	DelayMS(50);
-
-	ReadModifyWriteTPI(0x95, BIT_6, 0x00);
-
-	ENABLE_DISCOVERY;
+	if(!disable_interswitch) {
+		DelayMS(50);
+		ReadModifyWriteTPI(0x95, BIT_6, 0x00);
+		ENABLE_DISCOVERY;
+	}
 }
 
 void CbusWakeUpPulseGenerator(void)
@@ -915,8 +917,14 @@ static void MhlTxDrvProcessDisconnection(void)
 
 	TPI_DEBUG_PRINT(("Drv: MhlTxDrvProcessDisconnection\n"));
 
-        if(fwPowerState == POWER_STATE_D0_NO_MHL)
-               fwPowerState = POWER_STATE_D0_MHL;
+#ifdef CONFIG_CABLE_DETECT_ACCESSORY
+#ifdef CONFIG_INTERNAL_CHARGING_SUPPORT
+	/*cable detect recognise wrong device as MHL, do cable out in the following*/
+	if(fwPowerState == POWER_STATE_D0_NO_MHL && (gConnectMHL == false))
+		fwPowerState = POWER_STATE_D0_MHL;
+#endif
+#endif
+
 
 	I2C_WriteByte(TPI_SLAVE_ADDR, 0xA0, 0xD0);
 

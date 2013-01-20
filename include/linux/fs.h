@@ -975,6 +975,7 @@ struct file {
 	unsigned long f_mnt_write_state;
 #endif
 	int record_pid;
+	char record_comm[16];
 };
 
 struct file_handle {

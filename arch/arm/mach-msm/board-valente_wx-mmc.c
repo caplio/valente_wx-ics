@@ -366,11 +366,34 @@ int mmc_wimax_power(int on)
 }
 EXPORT_SYMBOL(mmc_wimax_power);
 
+/* UART */
+
+uint32_t usbuart_pin_enable_usb_table[] = {
+	GPIO_CFG(VALENTE_WX_MHL_USB_ENz, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+};
+
+uint32_t usbuart_pin_enable_uart_table[] = {
+	GPIO_CFG(VALENTE_WX_MHL_USB_ENz, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA),
+};
+
+void valente_wx_usb_uart_switch(int nvbus)
+{
+	printk(KERN_INFO "%s: %s, rev=%d\n", __func__, nvbus ? "uart" : "usb", system_rev);
+	if(nvbus == 1) { /* vbus gone, pin pull up */
+		gpio_tlmm_config(usbuart_pin_enable_uart_table[0], GPIO_CFG_ENABLE);
+	} else {	/* vbus present, pin pull low */
+		gpio_tlmm_config(usbuart_pin_enable_usb_table[0], GPIO_CFG_ENABLE);
+	}
+}
+
 int wimax_uart_switch = 0;
 int mmc_wimax_uart_switch(int uart)
 {
 	printk(KERN_INFO "[WIMAX] %s uart:%d\n", __func__, uart);
 	wimax_uart_switch = uart;
+
+    gpio_set_value(VALENTE_WX_CPUz_WIMAX_SW, uart?1:0); /* CPU_WIMAX_SW */
+	valente_wx_usb_uart_switch(1);
 
 	return 0;
 }
@@ -379,7 +402,7 @@ EXPORT_SYMBOL(mmc_wimax_uart_switch);
 int mmc_wimax_get_uart_switch(void)
 {
 	printk(KERN_INFO "[WIMAX] %s uart:%d\n", __func__, wimax_uart_switch);
-	return wimax_uart_switch;
+	return wimax_uart_switch?1:0;
 }
 EXPORT_SYMBOL(mmc_wimax_get_uart_switch);
 

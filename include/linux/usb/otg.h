@@ -61,6 +61,10 @@ enum usb_otg_event {
 	 * within TB_SRP_FAIL time.
 	 */
 	OTG_EVENT_NO_RESP_FOR_SRP,
+	/* broadcast uevent when device vbus ouput is
+	    lower than the repuirement of otg device.
+	*/
+	OTG_EVENT_INSUFFICIENT_POWER,
 };
 
 enum usb_xceiv_events {

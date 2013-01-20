@@ -391,5 +391,10 @@ config IP_NF_ARP_MANGLE
 
 endif # IP_NF_ARPTABLES
 
+config HTC_NETWORK_MODIFY
+	tristate "HTC_NETWORK_MODIFY"
+	---help---
+	    HTC_NETWORK_MODIFY
+
 endmenu
 

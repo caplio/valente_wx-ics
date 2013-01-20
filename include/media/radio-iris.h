@@ -660,6 +660,17 @@ enum iris_xfr_t {
 #undef FMDERR
 #define FMDERR(fmt, args...) pr_err("iris_radio: " fmt, ##args)
 
+/* HTC_BT add begin */
+#define PR_FM_EMERG(fmt, arg...)    printk(KERN_EMERG   "[FM] %s: " fmt "\n" , __func__ , ## arg)
+#define PR_FM_ALERT(fmt, arg...)    printk(KERN_ALERT   "[FM] %s: " fmt "\n" , __func__ , ## arg)
+#define PR_FM_CRIT(fmt, arg...)     printk(KERN_CRIT    "[FM] %s: " fmt "\n" , __func__ , ## arg)
+#define PR_FM_ERR(fmt, arg...)      printk(KERN_ERR     "[FM] %s: " fmt "\n" , __func__ , ## arg)
+#define PR_FM_WARNING(fmt, arg...)  printk(KERN_WARNING "[FM] %s: " fmt "\n" , __func__ , ## arg)
+#define PR_FM_NOTICE(fmt, arg...)   printk(KERN_NOTICE  "[FM] %s: " fmt "\n" , __func__ , ## arg)
+#define PR_FM_INFO(fmt, arg...)     printk(KERN_INFO    "[FM] %s: " fmt "\n" , __func__ , ## arg)
+#define PR_FM_DEBUG(fmt, arg...)    printk(KERN_DEBUG   "[FM] %s: " fmt "\n" , __func__ , ## arg)
+/* HTC_BT add end */
+
 /* Search options */
 enum search_t {
 	SEEK,

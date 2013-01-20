@@ -72,6 +72,19 @@ int emmc_partition_read_proc(char *page, char **start, off_t off,
 	return p - page;
 }
 
+int get_partition_num_by_name(char *name)
+{
+	struct mtd_partition *ptn = msm_nand_partitions;
+	int i;
+
+	for (i = 0; i < MSM_MAX_PARTITIONS && ptn->name; i++, ptn++) {
+		if (strcmp(ptn->name, name) == 0)
+			return ptn->offset;
+	}
+	return -1;
+}
+EXPORT_SYMBOL(get_partition_num_by_name);
+
 static int __init parse_tag_msm_partition(const struct tag *tag)
 {
 	struct mtd_partition *ptn = msm_nand_partitions;
@@ -108,7 +121,7 @@ static int __init parse_tag_msm_partition(const struct tag *tag)
 		uint64_t kpanic_off = 0;
 
 		if (count == MSM_MAX_PARTITIONS) {
-			printk("Cannot create virtual 'kpanic' partition\n");
+			printk(KERN_ERR "[K] Cannot create virtual 'kpanic' partition\n");
 			goto out;
 		}
 
@@ -121,7 +134,7 @@ static int __init parse_tag_msm_partition(const struct tag *tag)
 			}
 		}
 		if (i == count) {
-			printk(KERN_ERR "Partition %s not found\n",
+			printk(KERN_ERR "[K] Partition %s not found\n",
 			       CONFIG_VIRTUAL_KPANIC_SRC);
 			goto out;
 		}
@@ -131,7 +144,7 @@ static int __init parse_tag_msm_partition(const struct tag *tag)
 		ptn->offset = kpanic_off;
 		ptn->size = CONFIG_VIRTUAL_KPANIC_PSIZE;
 
-		printk("Virtual mtd partition '%s' created @%llx (%llu)\n",
+		printk(KERN_INFO "[K] Virtual mtd partition '%s' created @%llx (%llu)\n",
 		       ptn->name, ptn->offset, ptn->size);
 
 		count++;

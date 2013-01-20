@@ -60,6 +60,7 @@ struct battery_info_reply {
 	s32 batt_current;
 	u32 batt_discharg_current;
 	u32 level;
+	u32 level_raw;
 	u32 charging_source;
 	u32 charging_enabled;
 	u32 full_bat;

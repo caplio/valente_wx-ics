@@ -49,7 +49,7 @@
 
 #ifdef POLLING_PROXIMITY
 #define POLLING_DELAY		200
-#define TH_ADD			3
+#define TH_ADD			10
 #endif
 static int record_init_fail = 0;
 static void sensor_irq_do_work(struct work_struct *work);
@@ -114,6 +114,8 @@ struct cm3629_info {
 	uint8_t inte_ps2_canc;
 	uint8_t ps_conf1_val;
 	uint8_t ps_conf2_val;
+	uint8_t ps_conf1_val_from_board;
+	uint8_t ps_conf2_val_from_board;
 	uint8_t ps_conf3_val;
 	uint8_t ps_calibration_rule; /* For Saga */
 	int ps_pocket_mode;
@@ -136,6 +138,8 @@ struct cm3629_info {
 	uint8_t ps2_adc_offset;
 	uint8_t ps_debounce;
 	uint16_t ps_delay_time;
+	unsigned int no_need_change_setting;
+	int ps_th_add;
 };
 
 static uint8_t ps1_canc_set;
@@ -177,7 +181,7 @@ static int I2C_RxData(uint16_t slaveAddr, uint8_t *rxData, int length)
 
 		/*check intr GPIO when i2c error*/
 
-		D("[PS][cm3629 error] %s, i2c err, slaveAddr 0x%x ISR gpio %d , record_init_fail %d \n",
+		D("[PS][cm3629 warning] %s, i2c err, slaveAddr 0x%x ISR gpio %d , record_init_fail %d \n",
 				__func__, slaveAddr, lpi->intr_pin, record_init_fail);
 
 		msleep(10);
@@ -216,7 +220,7 @@ static int I2C_RxData_2(char *rxData, int length)
 		if (i2c_transfer(lp_info->i2c_client->adapter, msgs, 2) > 0)
 			break;
 
-		D("[PS][cm3629 error] %s, i2c err, ISR gpio %d\n",
+		D("[PS][cm3629 warning] %s, i2c err, ISR gpio %d\n",
 				__func__, lpi->intr_pin);
 		msleep(10);
 	}
@@ -246,7 +250,7 @@ static int I2C_TxData(uint16_t slaveAddr, uint8_t *txData, int length)
 		if (i2c_transfer(lp_info->i2c_client->adapter, msg, 1) > 0)
 			break;
 
-		D("[PS][cm3629 error] %s, i2c err, slaveAddr 0x%x, register 0x%x, value 0x%x, ISR gpio%d, record_init_fail %d\n",
+		D("[PS][cm3629 warning] %s, i2c err, slaveAddr 0x%x, register 0x%x, value 0x%x, ISR gpio%d, record_init_fail %d\n",
 				__func__, slaveAddr, txData[0], txData[1], lpi->intr_pin, record_init_fail);
 
 		msleep(10);
@@ -383,7 +387,7 @@ static int sensor_lpm_power(int enable)
 
 	return 0;
 }
-static int get_ls_adc_value(uint16_t *als_step, bool resume)
+static int get_ls_adc_value(uint32_t *als_step, bool resume)
 {
 
 	struct cm3629_info *lpi = lp_info;
@@ -429,9 +433,9 @@ static int get_ls_adc_value(uint16_t *als_step, bool resume)
 	lsb = cmd[0];
 	msb = cmd[1];
 
-	*als_step = (uint16_t)msb;
+	*als_step = (uint32_t)msb;
 	*als_step <<= 8;
-	*als_step |= (uint16_t)lsb;
+	*als_step |= (uint32_t)lsb;
 
 	D("[LS][cm3629] %s: raw adc = 0x%X, ls_calibrate = %d\n",
 		__func__, *als_step, lpi->ls_calibrate);
@@ -605,7 +609,7 @@ static void enable_als_interrupt(void)/*enable als interrupt*/
 
 static void report_lsensor_input_event(struct cm3629_info *lpi, bool resume)
 {/*when resume need report a data, so the paramerter need to quick reponse*/
-	uint16_t adc_value = 0;
+	uint32_t adc_value = 0;
 	int level = 0, i, ret = 0;
 
 	mutex_lock(&als_get_adc_mutex);
@@ -815,7 +819,7 @@ static void polling_do_work(struct work_struct *w)
 				lpi->ps1_thd_set = 0xFF;
 			else
 				lpi->ps1_thd_set = (lpi->mapping_table[i] +
-						   TH_ADD);
+						   lpi->ps_th_add);
 
 			/* settng command code(0x01) = 0x03*/
 			cmd[0] = lpi->ps1_thd_set;
@@ -974,8 +978,9 @@ static int psensor_enable(struct cm3629_info *lpi)
 #ifdef POLLING_PROXIMITY
 	if (lpi->enable_polling_ignore == 1) {
 		if (lpi->mfg_mode != NO_IGNORE_BOOT_MODE) {
+			msleep(40);
 			ret = get_stable_ps_adc_value(&ps_adc1, &ps_adc2);
-			D("[PS][cm3629] INITIAL ps_adc1 = 0x%02X", ps_adc1);
+			D("[PS][cm3629] INITIAL ps_adc1 = 0x%02X\n", ps_adc1);
 			if ((ret == 0) && (lpi->mapping_table != NULL) &&
 			    ((ps_adc1 >= lpi->ps1_thd_set - 1)))
 				queue_delayed_work(lpi->lp_wq, &polling_work,
@@ -990,6 +995,9 @@ static int psensor_disable(struct cm3629_info *lpi)
 {
 	int ret = -EIO;
 	char cmd[2];
+
+	lpi->ps_conf1_val = lpi->ps_conf1_val_from_board;
+	lpi->ps_conf2_val = lpi->ps_conf2_val_from_board;
 
 	lpi->ps_pocket_mode = 0;
 
@@ -1591,7 +1599,7 @@ static ssize_t ps_i2c_show(struct device *dev,
 		"0x6L=0x%02X, 0x6H=0x%02X, 0x7L=0x%02X, 0x7H=0x%02X,\n"
 		"0x8L=0x%02X, 0x8H=0x%02X, 0x9L=0x%02X, 0x9H=0x%02X, "
 		"0xaL=0x%02X, 0xaH=0x%02X, 0xbL=0x%02X, 0xbH=0x%02X,\n"
-		"0xcL=0x%02X, 0xcH=0x%02X.",
+		"0xcL=0x%02X, 0xcH=0x%02X.\n",
 		data[0], data[1], data[2], data[3],
 		data[4], data[5], data[6], data[7],
 		data[8], data[9], data[10], data[11],
@@ -1610,20 +1618,29 @@ static ssize_t ps_i2c_store(struct device *dev,
 	char *token[10];
 	int i, ret = 0;
 	uint8_t reg = 0, value[3] = {0}, read_value[3] = {0};
+	unsigned long ul_reg = 0, ul_value[3] = {0};
 
 	printk(KERN_INFO "[CM3629_] %s\n", buf);
-	for (i = 0; i < 3; i++)
+
+	for (i = 0; i < 3; i++) {
 		token[i] = strsep((char **)&buf, " ");
-	 ret = strict_strtoul(token[0], 16, (unsigned long *)&(reg));
-	 ret = strict_strtoul(token[1], 16, (unsigned long *)&(value[0]));
-	 ret = strict_strtoul(token[2], 16, (unsigned long *)&(value[1]));
+		D("%s: token[%d] = %s\n", __func__, i, token[i]);
+	}
+
+	ret = strict_strtoul(token[0], 16, &ul_reg);
+	ret = strict_strtoul(token[1], 16, &(ul_value[0]));
+	ret = strict_strtoul(token[2], 16, &(ul_value[1]));
+
+	reg = ul_reg;
+	value[0] = ul_value[0];
+	value[1] = ul_value[1];
+
 	_cm3629_I2C_Write2(lpi->cm3629_slave_address,
 		reg, value, 3);
-
 	D("[CM3629] Set REG=0x%x, value[0]=0x%x, value[1]=0x%x\n",
 	  reg, value[0], value[1]);
-	_cm3629_I2C_Read2(lpi->cm3629_slave_address, reg, read_value, 2);
 
+	_cm3629_I2C_Read2(lpi->cm3629_slave_address, reg, read_value, 2);
 	D("[CM3629] Get REG=0x%x, value[0]=0x%x, value[1]=0x%x\n",
 	  reg, read_value[0], read_value[1]);
 
@@ -1636,7 +1653,7 @@ static ssize_t ps_i2c_store(struct device *dev,
 		D("[CM3629] NO parameter update for register 0x%02X\n", reg);
 	}
 
-	return ret;
+	return count;
 }
 static DEVICE_ATTR(ps_i2c, 0664, ps_i2c_show, ps_i2c_store);
 
@@ -1689,6 +1706,94 @@ static ssize_t ps_hw_store(struct device *dev,
 	return count;
 }
 static DEVICE_ATTR(ps_hw, 0664, ps_hw_show, ps_hw_store);
+
+static ssize_t ps_headset_bt_plugin_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	int ret = 0;
+	struct cm3629_info *lpi = lp_info;
+
+	ret = sprintf(buf, "ps_conf1_val = 0x%02X, ps_conf2_val = 0x%02X\n",
+		      lpi->ps_conf1_val, lpi->ps_conf2_val);
+
+	return ret;
+}
+static ssize_t ps_headset_bt_plugin_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	int headset_bt_plugin = 0;
+	struct cm3629_info *lpi = lp_info;
+	char cmd[2] = {0};
+
+	sscanf(buf, "%d", &headset_bt_plugin);
+	D("[PS] %s: headset_bt_plugin = %d\n", __func__, headset_bt_plugin);
+
+	if (lpi->no_need_change_setting == 1) {
+		D("[PS] %s: no_need_change_setting = 0x%x.\n", __func__, lpi->no_need_change_setting);
+		return count;
+	} else {
+		if (headset_bt_plugin == 1) {
+			D("[PS][cm3629] %s, Headset or BT or Speaker ON\n", __func__);
+
+			_cm3629_I2C_Read2(lpi->cm3629_slave_address, PS_config, cmd, 2);
+			D("[PS][cm3629] %s, read value => cmd[0] = 0x%x, cmd[1] = 0x%x\n",
+				__func__, cmd[0], cmd[1]);
+
+			D("[PS][cm3629] %s, Before setting: ps_conf1_val = 0x%x\n",
+				__func__, lpi->ps_conf1_val);
+			lpi->ps_conf1_val = (cmd[0] & 0x3) | (CM3629_PS_DR_1_320 |
+							      CM3629_PS_IT_1_6T |
+							      CM3629_PS1_PERS_1);
+			D("[PS][cm3629] %s, After setting: ps_conf1_val = 0x%x\n",
+				__func__, lpi->ps_conf1_val);
+
+			D("[PS][cm3629] %s, Before setting: ps_conf2_val = 0x%x\n",
+				__func__, lpi->ps_conf2_val);
+			lpi->ps_conf2_val = (cmd[1] & 0xF) | (CM3629_PS_ITB_1 |
+							      CM3629_PS_ITR_1);
+			D("[PS][cm3629] %s, After setting: ps_conf2_val = 0x%x\n",
+				__func__, lpi->ps_conf2_val);
+
+			cmd[0] = lpi->ps_conf1_val;
+			cmd[1] = lpi->ps_conf2_val;
+			D("[PS][cm3629] %s, write cmd[0] = 0x%x, cmd[1] = 0x%x\n",
+				__func__, cmd[0], cmd[1]);
+			_cm3629_I2C_Write2(lpi->cm3629_slave_address,
+						 PS_config, cmd, 3);
+
+			_cm3629_I2C_Read2(lpi->cm3629_slave_address, PS_config, cmd, 2);
+			D("[PS][cm3629] %s, read 0x3 cmd value after set =>"
+				" cmd[0] = 0x%x, cmd[1] = 0x%x\n",
+				__func__, cmd[0], cmd[1]);
+		} else {
+			D("[PS][cm3629] %s, Headset or BT or Speaker OFF\n", __func__);
+
+			_cm3629_I2C_Read2(lpi->cm3629_slave_address, PS_config, cmd, 2);
+			D("[PS][cm3629] %s, read value => cmd[0] = 0x%x, cmd[1] = 0x%x\n",
+				__func__, cmd[0], cmd[1]);
+
+			lpi->ps_conf1_val = lpi->ps_conf1_val_from_board;
+			lpi->ps_conf2_val = lpi->ps_conf2_val_from_board;
+
+			cmd[0] = ((cmd[0] & 0x3) | lpi->ps_conf1_val);
+			cmd[1] = ((cmd[1] & 0xF) | lpi->ps_conf2_val);
+			D("[PS][cm3629] %s, write cmd[0] = 0x%x, cmd[1] = 0x%x\n",
+				__func__, cmd[0], cmd[1]);
+			_cm3629_I2C_Write2(lpi->cm3629_slave_address,
+						 PS_config, cmd, 3);
+
+			_cm3629_I2C_Read2(lpi->cm3629_slave_address, PS_config, cmd, 2);
+			D("[PS][cm3629] %s, read 0x3 cmd value after set =>"
+				" cmd[0] = 0x%x, cmd[1] = 0x%x\n",
+				__func__, cmd[0], cmd[1]);
+		}
+
+	}
+
+	return count;
+}
+static DEVICE_ATTR(ps_headset_bt_plugin, 0664, ps_headset_bt_plugin_show, ps_headset_bt_plugin_store);
 
 static ssize_t ls_adc_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
@@ -1879,6 +1984,86 @@ static ssize_t ls_fLevel_store(struct device *dev,
 	return count;
 }
 static DEVICE_ATTR(ls_flevel, 0664, ls_fLevel_show, ls_fLevel_store);
+
+
+static ssize_t ps_workaround_table_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct cm3629_info *lpi = lp_info;
+	int i = 0;
+	char table_str[952] = "";
+	char temp_str[64] = "";
+
+	sprintf(table_str, "mapping table size = %d\n", lpi->mapping_size);
+	printk(KERN_DEBUG "%s: table_str = %s\n", __func__, table_str);
+	for (i = 0; i < lpi->mapping_size; i++) {
+		memset(temp_str, 0, 64);
+		if ((i == 0) || ((i % 10) == 1))
+			sprintf(temp_str, "[%d] = 0x%x", i, lpi->mapping_table[i]);
+		else
+			sprintf(temp_str, ", [%d] = 0x%x", i, lpi->mapping_table[i]);
+		strcat(table_str, temp_str);
+		printk(KERN_DEBUG "%s: [%d]: table_str = %s\n", __func__, i, table_str);
+		if ((i != 0) && (i % 10) == 0)
+			strcat(table_str, "\n");
+	}
+
+	return sprintf(buf, "%s\n", table_str);
+}
+static ssize_t ps_workaround_table_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct cm3629_info *lpi = lp_info;
+	int index = 0;
+	unsigned int value = 0;
+
+	sscanf(buf, "%d 0x%x", &index, &value);
+
+	D("%s: input: index = %d, value = 0x%x\n", __func__, index, value);
+
+	if ((index < lpi->mapping_size) && (index >= 0) && (value <= 255) && (index >= 0))
+		lpi->mapping_table[index] = value;
+
+	if ((index < lpi->mapping_size) && (index >= 0)) {
+		printk(KERN_INFO "%s: lpi->mapping_table[%d] = 0x%x, "
+			"lpi->mapping_size = %d\n",
+			__func__, index, lpi->mapping_table[index],
+			lpi->mapping_size);
+	}
+
+	return count;
+}
+static DEVICE_ATTR(ps_workaround_table, 0664, ps_workaround_table_show, ps_workaround_table_store);
+
+
+static ssize_t ps_fixed_thd_add_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct cm3629_info *lpi = lp_info;
+
+	return sprintf(buf, "Fixed added threshold = %d\n", lpi->ps_th_add);
+}
+static ssize_t ps_fixed_thd_add_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct cm3629_info *lpi = lp_info;
+	int value = 0;
+
+	sscanf(buf, "%d", &value);
+
+	D("%s: input: value = %d\n", __func__, value);
+
+	if ((value >= 0) && (value <= 255))
+		lpi->ps_th_add = value;
+
+	D("%s: lpi->ps_th_add = %d\n", __func__, lpi->ps_th_add);
+
+	return count;
+}
+static DEVICE_ATTR(ps_fixed_thd_add, 0664, ps_fixed_thd_add_show, ps_fixed_thd_add_store);
+
 
 static int lightsensor_setup(struct cm3629_info *lpi)
 {
@@ -2108,6 +2293,8 @@ static int cm3629_probe(struct i2c_client *client,
 	lpi->ps2_thd_set = pdata->ps2_thd_set;
 	lpi->ps_conf1_val = pdata->ps_conf1_val;
 	lpi->ps_conf2_val = pdata->ps_conf2_val;
+	lpi->ps_conf1_val_from_board = pdata->ps_conf1_val;
+	lpi->ps_conf2_val_from_board = pdata->ps_conf2_val;
 	lpi->ps_conf3_val = pdata->ps_conf3_val;
 	lpi->ps_calibration_rule = pdata->ps_calibration_rule;
 	lpi->j_start = 0;
@@ -2125,6 +2312,8 @@ static int cm3629_probe(struct i2c_client *client,
 	lpi->ps2_adc_offset = pdata->ps2_adc_offset;
 	lpi->ps_debounce = pdata->ps_debounce;
 	lpi->ps_delay_time = pdata->ps_delay_time;
+	lpi->no_need_change_setting = pdata->no_need_change_setting;
+	lpi->ps_th_add = TH_ADD;
 
 	lp_info = lpi;
 
@@ -2264,6 +2453,18 @@ static int cm3629_probe(struct i2c_client *client,
 		goto err_create_ps_device;
 
 	ret = device_create_file(lpi->ps_dev, &dev_attr_ps_i2c);
+	if (ret)
+		goto err_create_ps_device;
+
+	ret = device_create_file(lpi->ps_dev, &dev_attr_ps_headset_bt_plugin);
+	if (ret)
+		goto err_create_ps_device;
+
+	ret = device_create_file(lpi->ps_dev, &dev_attr_ps_workaround_table);
+	if (ret)
+		goto err_create_ps_device;
+
+	ret = device_create_file(lpi->ps_dev, &dev_attr_ps_fixed_thd_add);
 	if (ret)
 		goto err_create_ps_device;
 

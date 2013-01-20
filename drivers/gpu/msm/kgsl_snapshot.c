@@ -290,6 +290,8 @@ int kgsl_device_snapshot(struct kgsl_device *device, int hang)
 	KGSL_DRV_ERR(device,"snapshot created at va %p pa %x size %d\n",
 			device->snapshot, pdata->snapshot_address,
 			device->snapshot_size);
+	if (hang)
+		sysfs_notify(&device->snapshot_kobj, NULL, "timestamp");
 	return 0;
 }
 EXPORT_SYMBOL(kgsl_device_snapshot);
@@ -365,6 +367,25 @@ static ssize_t trigger_store(struct kgsl_device *device, const char *buf,
 	return count;
 }
 
+/* Show the timestamp of the last collected snapshot */
+static ssize_t no_panic_show(struct kgsl_device *device, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%x\n", device->snapshot_no_panic);
+}
+
+/* manually trigger a new snapshot to be collected */
+static ssize_t no_panic_store(struct kgsl_device *device, const char *buf,
+	size_t count)
+{
+	if (device && count > 0) {
+		mutex_lock(&device->mutex);
+		device->snapshot_no_panic = simple_strtol(buf, NULL, 10);
+		mutex_unlock(&device->mutex);
+	}
+
+	return count;
+}
+
 static struct bin_attribute snapshot_attr = {
 	.attr.name = "dump",
 	.attr.mode = 0444,
@@ -381,6 +402,8 @@ struct kgsl_snapshot_attribute attr_##_name = { \
 
 SNAPSHOT_ATTR(trigger, 0600, NULL, trigger_store);
 SNAPSHOT_ATTR(timestamp, 0444, timestamp_show, NULL);
+/* HTC: dev only, for disable kernel panic and capture snapshot for analysis */
+SNAPSHOT_ATTR(no_panic, 0644, no_panic_show, no_panic_store);
 
 static void snapshot_sysfs_release(struct kobject *kobj)
 {
@@ -470,6 +493,10 @@ int kgsl_device_snapshot_init(struct kgsl_device *device)
 		goto done;
 
 	ret  = sysfs_create_file(&device->snapshot_kobj, &attr_timestamp.attr);
+	if (ret)
+		goto done;
+
+	ret  = sysfs_create_file(&device->snapshot_kobj, &attr_no_panic.attr);
 
 done:
 	return ret;

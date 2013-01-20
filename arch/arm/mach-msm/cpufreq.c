@@ -65,22 +65,29 @@ static int set_cpu_freq(struct cpufreq_policy *policy, unsigned int new_freq)
 
 	freqs.old = policy->cur;
 #ifdef CONFIG_PERFLOCK
-	perf_freq = perflock_override(policy, new_freq);
-	if (perf_freq) {
+	if (override_cpu) {
+		/* mfreq enabled */
+		if (policy->cur == policy->max)
+			return 0;
+		else
+			freqs.new = policy->max;
+	} else if ((perf_freq = perflock_override(policy, new_freq))) {
+		/* perflock & cpufreq_ceiling enabled */
 		if (policy->cur == perf_freq)
 			return 0;
 		else
 			freqs.new = perf_freq;
-	} else if (override_cpu) {
+	} else
+		freqs.new = new_freq;
 #else
 	if (override_cpu) {
-#endif
 		if (policy->cur == policy->max)
 			return 0;
 		else
 			freqs.new = policy->max;
 	} else
 		freqs.new = new_freq;
+#endif
 	freqs.cpu = policy->cpu;
 	cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 	ret = acpuclk_set_rate(policy->cpu, freqs.new, SETRATE_CPUFREQ);

@@ -668,12 +668,14 @@ struct msm_vidc_platform_data vidc_platform_data = {
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
 	.memtype = ION_CP_MM_HEAP_ID,
 	.enable_ion = 1,
+	.cp_enabled = 1,
 #else
 	.memtype = MEMTYPE_EBI1,
 	.enable_ion = 0,
 #endif
 	.disable_dmx = 0,
 	.disable_fullhd = 0,
+	.cont_mode_dpb_count = 18,
 };
 
 struct platform_device msm_device_vidc = {
@@ -983,6 +985,8 @@ static struct pil_q6v4_pdata msm_8960_q6_mss_fw_data = {
 	.aclk_reg = SFAB_MSS_Q6_FW_ACLK_CTL,
 	.jtag_clk_reg = MSS_Q6FW_JTAG_CLK_CTL,
 	.xo_id = MSM_XO_CXO,
+	.xo1_id = MSM_XO_TCXO_A0,
+	.xo2_id = MSM_XO_TCXO_A1,
 	.name = "modem_fw",
 	.depends = "q6",
 	.pas_id = PAS_MODEM_FW,
@@ -1968,7 +1972,7 @@ void __init msm_fb_register_device(char *name, void *data)
 		msm_register_device(&msm_dtv_device, data);
 #endif
 	else
-		printk(KERN_ERR "%s: unknown device! %s\n", __func__, name);
+		printk(KERN_ERR "[K] %s: unknown device! %s\n", __func__, name);
 }
 
 static struct resource resources_sps[] = {
@@ -2561,11 +2565,11 @@ static struct kgsl_device_platform_data kgsl_3d0_pdata = {
 			.bus_freq = 0,
 		},
 	},
-	.init_level = 0,
+	.init_level = 2,
 	.num_levels = 5,
 	.set_grp_async = NULL,
-	.idle_timeout = HZ/20,
-	.nap_allowed = false,
+	.idle_timeout = HZ/12,
+	.nap_allowed = true,
 	.clk_map = KGSL_CLK_CORE | KGSL_CLK_IFACE | KGSL_CLK_MEM_IFACE,
 #ifdef CONFIG_MSM_BUS_SCALING
 	.bus_scale_table = &grp3d_bus_scale_pdata,

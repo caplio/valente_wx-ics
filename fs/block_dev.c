@@ -28,6 +28,8 @@
 #include <asm/uaccess.h>
 #include "internal.h"
 
+#include <trace/events/mmcio.h>
+
 struct bdev_inode {
 	struct block_device bdev;
 	struct inode vfs_inode;
@@ -1530,6 +1532,8 @@ ssize_t blkdev_aio_write(struct kiocb *iocb, const struct iovec *iov,
 	ssize_t ret;
 
 	BUG_ON(iocb->ki_pos != pos);
+	trace_blkdev_file_write(iocb->ki_filp->f_path.dentry,
+		iocb->ki_left);
 
 	ret = __generic_file_aio_write(iocb, iov, nr_segs, &iocb->ki_pos);
 	if (ret > 0 || ret == -EIOCBQUEUED) {
@@ -1539,6 +1543,7 @@ ssize_t blkdev_aio_write(struct kiocb *iocb, const struct iovec *iov,
 		if (err < 0 && ret > 0)
 			ret = err;
 	}
+	trace_file_write_done(iocb->ki_filp);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(blkdev_aio_write);

@@ -24,6 +24,8 @@
 
 #define MMC_QUEUE_SUSPENDED	(1 << 0)
 
+static struct scatterlist* sd_sg = NULL;
+
 /*
  * Prepare a MMC request. This just filters out odd stuff.
  */
@@ -233,6 +235,11 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 						mq->queue);
 	}
 
+	if (!sd_sg) {
+		printk(KERN_INFO "[mmc] SD allocate SG memory (Once)\n");
+		sd_sg = kmalloc(sizeof(struct scatterlist) * host->max_segs, GFP_KERNEL);
+	}
+
 #ifdef CONFIG_MMC_BLOCK_BOUNCE
 	if (host->max_segs == 1) {
 		unsigned int bouncesz;
@@ -261,7 +268,15 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 			blk_queue_max_segments(mq->queue, bouncesz / 512);
 			blk_queue_max_segment_size(mq->queue, bouncesz);
 
-			mq->sg = kmalloc(sizeof(struct scatterlist),
+			if (mmc_card_sd(card)) {
+				if (!sd_sg) {
+					printk(KERN_INFO "[mmc] SD allocate SG memory\n");
+					sd_sg = kmalloc(sizeof(struct scatterlist), GFP_KERNEL);
+				} else
+					memset(sd_sg, 0, sizeof(struct scatterlist));
+				mq->sg = sd_sg;
+			} else
+				mq->sg = kmalloc(sizeof(struct scatterlist),
 				GFP_KERNEL);
 			if (!mq->sg) {
 				ret = -ENOMEM;
@@ -286,9 +301,18 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 			min(host->max_blk_count, host->max_req_size / 512));
 		blk_queue_max_segments(mq->queue, host->max_segs);
 		blk_queue_max_segment_size(mq->queue, host->max_seg_size);
+		if (mmc_card_sd(card)) {
+			if (!sd_sg) {
+				printk(KERN_INFO "[mmc] SD allocate SG memory\n");
+				sd_sg = kmalloc(sizeof(struct scatterlist) *
+				host->max_segs, GFP_KERNEL);
+			} else
+				memset(sd_sg, 0, sizeof(struct scatterlist) * host->max_segs);
+			mq->sg = sd_sg;
+		} else
+			mq->sg = kmalloc(sizeof(struct scatterlist) *
+				host->max_segs, GFP_KERNEL);
 
-		mq->sg = kmalloc(sizeof(struct scatterlist) *
-			host->max_segs, GFP_KERNEL);
 		if (!mq->sg) {
 			ret = -ENOMEM;
 			goto cleanup_queue;
@@ -315,8 +339,9 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
  		kfree(mq->bounce_sg);
  	mq->bounce_sg = NULL;
  cleanup_queue:
- 	if (mq->sg)
+	if (mq->sg && mq->card->type != MMC_TYPE_SD)
 		kfree(mq->sg);
+
 	mq->sg = NULL;
 	if (mq->bounce_buf)
 		kfree(mq->bounce_buf);
@@ -345,8 +370,9 @@ void mmc_cleanup_queue(struct mmc_queue *mq)
  	if (mq->bounce_sg)
  		kfree(mq->bounce_sg);
  	mq->bounce_sg = NULL;
+	if (mq->card->type != MMC_TYPE_SD)
+		kfree(mq->sg);
 
-	kfree(mq->sg);
 	mq->sg = NULL;
 
 	if (mq->bounce_buf)

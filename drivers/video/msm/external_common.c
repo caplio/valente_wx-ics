@@ -730,7 +730,7 @@ int external_common_state_create(struct platform_device *pdev)
 		return rc;
 	}
 	external_common_state->uevent_kobj = &mfd->fbi->dev->kobj;
-	DEV_ERR("%s: sysfs group %p\n", __func__,
+	DEV_DBG("%s: sysfs group %p\n", __func__,
 		external_common_state->uevent_kobj);
 
 	kobject_uevent(external_common_state->uevent_kobj, KOBJ_ADD);
@@ -1404,7 +1404,7 @@ static void hdmi_edid_get_display_mode(const uint8 *data_buf,
 		 /* EDID_BLOCK_SIZE = 0x80  Each page size in the EDID ROM */
 		desc_offset = edid_blk1[0x02];
 #ifdef CONFIG_FB_MSM_HDMI_MHL_SUPERDEMO
-		i = 0;
+               i = 0;
 		while (i < (edid_blk1[0x03] & 0x0F)) {/* total number of DTDs */
 #else
 		while (0 != edid_blk1[desc_offset]) {

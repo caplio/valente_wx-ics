@@ -63,6 +63,9 @@ static int restart_level;
 static int enable_ramdumps;
 static wait_queue_head_t subsystem_restart_wq;
 static char subsystem_restart_reason[256];
+static int modem_restart_count = 0;
+static int riva_restart_count = 0;
+static int lpass_restart_count = 0;
 
 static enum {
 	SUBSYSTEM_RESTART_STATE_NONE,
@@ -476,6 +479,22 @@ static int subsystem_restart_thread(void *data)
 	do_exit(0);
 }
 
+static void show_subsystem_restart_count(const char *subsys_name)
+{
+	if(!strncmp(subsys_name, "modem", SUBSYS_NAME_MAX_LENGTH))
+		pr_info("Restarting %s [level=%d], modem_restart_count = %d!\n", subsys_name,
+				restart_level, ++modem_restart_count);
+	else if(!strncmp(subsys_name, "riva", SUBSYS_NAME_MAX_LENGTH))
+		pr_info("Restarting %s [level=%d], riva_restart_count = %d!\n", subsys_name,
+				restart_level, ++riva_restart_count);
+	else if(!strncmp(subsys_name, "lpass", SUBSYS_NAME_MAX_LENGTH))
+		pr_info("Restarting %s [level=%d], lpass_restart_count = %d!\n", subsys_name,
+				restart_level, ++lpass_restart_count);
+	else
+		pr_info("Restarting %s [level=%d]!\n", subsys_name,
+				restart_level);
+}
+
 int subsystem_restart(const char *subsys_name)
 {
 	struct subsys_data *subsys;
@@ -535,8 +554,7 @@ int subsystem_restart(const char *subsys_name)
 	case RESET_SUBSYS_COUPLED:
 	case RESET_SUBSYS_MIXED:
 	case RESET_SUBSYS_INDEPENDENT:
-		pr_info("Restarting %s [level=%d]!\n", subsys_name,
-				restart_level);
+		show_subsystem_restart_count(subsys_name);
 
 		if (!strncmp(subsys_name, "modem",
 			SUBSYS_NAME_MAX_LENGTH)) {

@@ -100,6 +100,7 @@ struct diag_write_device {
 struct diag_client_map {
 	char name[20];
 	int pid;
+	int timeout;
 };
 
 /* This structure is defined in USB header file */

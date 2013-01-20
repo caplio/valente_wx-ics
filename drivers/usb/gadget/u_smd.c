@@ -49,11 +49,7 @@ struct smd_port_info {
 
 struct smd_port_info smd_pi[SMD_N_PORTS] = {
 	{
-#ifndef CONFIG_USB_ANDROID_SERIAL_CT_PROJECTS
 		.name = "DS",
-#else
-		.name = "DATA4",
-#endif
 	},
 	{
 		.name = "UNUSED",

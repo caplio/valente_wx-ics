@@ -876,7 +876,16 @@ void mdp_pipe_ctrl(MDP_BLOCK_TYPE block, MDP_BLOCK_POWER_STATE state,
 			 */
 			cancel_delayed_work(&mdp_pipe_ctrl_worker);
 		}
-
+#if 1 /* HTC_CSP_START */
+		if (block == MDP_MASTER_BLOCK && !mdp_all_blocks_off) {
+			PR_DISP_INFO("Failed to turn off MDP_MASTER_BLOCK at %d", i);
+			for(i = 0; i < MDP_MAX_BLOCK; ++i) {
+				int cnt = atomic_read(&mdp_block_power_cnt[i]);
+				if (cnt > 0)
+					PR_DISP_INFO("    Block %d: mdp_block_power_cnt = %d\n", i, cnt);
+			}
+		}
+#endif /* HTC_CSP_END */
 		if ((mdp_all_blocks_off) && (mdp_current_clk_on)) {
 			mutex_lock(&mdp_suspend_mutex);
 			if (block == MDP_MASTER_BLOCK || mdp_suspended) {

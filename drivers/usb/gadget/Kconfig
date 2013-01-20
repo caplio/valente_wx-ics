@@ -1027,6 +1027,13 @@ config USB_ANDROID_RNDIS
 	help
 	  Provides RNDIS ethernet function for android gadget driver.
 
+config USB_ETH_PASS_FW
+	boolean "Support internet pass through over firewall"
+	depends on USB_ANDROID_RNDIS
+	default n
+	help
+	  Support internet pass through over firewall.
+
 config USB_ANDROID_RMNET
 	boolean "RmNet function driver"
 	depends on USB_G_ANDROID
@@ -1156,13 +1163,6 @@ config USB_ANDROID_SERIAL
 	depends on USB_G_ANDROID
 	help
 
-config USB_ANDROID_SERIAL_CT_PROJECTS
-        boolean "modem setting for ct"
-        depends on USB_ANDROID_SERIAL
-        default n
-        help
-          SMD on CT projects uses DATA4. Other project uses DS.
-
 config USB_ANDROID_PROJECTOR
 	boolean "Android gadget Projector function"
 	depends on USB_G_ANDROID
@@ -1175,6 +1175,11 @@ config USB_ANDROID_PROJECTOR_HTC_MODE
 
 config USB_ANDROID_ECM
 	boolean "Android gadget ECM function"
+	depends on USB_G_ANDROID
+	help
+
+config USB_ANDROID_NCM
+	boolean "Android gadget NCM function"
 	depends on USB_G_ANDROID
 	help
 

@@ -45,6 +45,7 @@
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
 
+
 static void hci_le_connect(struct hci_conn *conn)
 {
 	struct hci_dev *hdev = conn->hdev;
@@ -75,6 +76,14 @@ static void hci_le_connect(struct hci_conn *conn)
 static void hci_le_connect_cancel(struct hci_conn *conn)
 {
 	hci_send_cmd(conn->hdev, HCI_OP_LE_CREATE_CONN_CANCEL, 0, NULL);
+}
+
+static inline bool is_sco_active(struct hci_dev *hdev)
+{
+	if (hci_conn_hash_lookup_state(hdev, SCO_LINK, BT_CONNECTED) ||
+		(hci_conn_hash_lookup_state(hdev, ESCO_LINK,BT_CONNECTED)))
+		return true;
+	return false;
 }
 
 void hci_acl_connect(struct hci_conn *conn)
@@ -112,7 +121,8 @@ void hci_acl_connect(struct hci_conn *conn)
 	}
 
 	cp.pkt_type = cpu_to_le16(conn->pkt_type);
-	if (lmp_rswitch_capable(hdev) && !(hdev->link_mode & HCI_LM_MASTER))
+	if (lmp_rswitch_capable(hdev) && !(hdev->link_mode & HCI_LM_MASTER)
+			&& !(is_sco_active(hdev)))
 		cp.role_switch = 0x01;
 	else
 		cp.role_switch = 0x00;
@@ -135,7 +145,7 @@ static void hci_acl_connect_cancel(struct hci_conn *conn)
 
 void hci_acl_disconn(struct hci_conn *conn, __u8 reason)
 {
-	BT_DBG("%p", conn);
+	BT_DBG("%p, dev type %d", conn, conn->hdev->dev_type);
 
 	conn->state = BT_DISCONN;
 
@@ -438,7 +448,7 @@ int hci_conn_del(struct hci_conn *conn)
 {
 	struct hci_dev *hdev = conn->hdev;
 
-	BT_DBG("%s conn %p handle %d", hdev->name, conn, conn->handle);
+	BT_DBG("%s conn %p handle %d type %d", hdev->name, conn, conn->handle, conn->type);
 
 	/* Make sure no timers are running */
 	del_timer(&conn->idle_timer);

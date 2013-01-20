@@ -335,7 +335,7 @@ static ssize_t atmel_gpio_show(struct device *dev,
 	pdata = ts_data->client->dev.platform_data;
 
 	ret = gpio_get_value(pdata->gpio_irq);
-	printk(KERN_DEBUG "GPIO_TP_INT_N=%d\n", pdata->gpio_irq);
+	printk(KERN_DEBUG "[TP]GPIO_TP_INT_N=%d\n", pdata->gpio_irq);
 	sprintf(buf, "GPIO_TP_INT_N=%d\n", ret);
 	ret = strlen(buf) + 1;
 	return ret;
@@ -366,7 +366,7 @@ static ssize_t atmel_register_show(struct device *dev,
 	struct atmel_ts_data *ts_data;
 	ts_data = private_ts;
 	if (i2c_atmel_read(ts_data->client, atmel_reg_addr, ptr, 1) < 0) {
-		printk(KERN_WARNING "%s: read fail\n", __func__);
+		printk(KERN_WARNING "[TP]%s: read fail\n", __func__);
 		return ret;
 	}
 	ret += sprintf(buf, "addr: %ld, data: %d\n", atmel_reg_addr, ptr[0]);
@@ -389,21 +389,21 @@ static ssize_t atmel_register_store(struct device *dev,
 		ret = strict_strtoul(buf_tmp, 10, &atmel_reg_addr);
 		printk(KERN_DEBUG "read addr: 0x%lX\n", atmel_reg_addr);
 		if (!atmel_reg_addr) {
-			printk(KERN_WARNING "%s: string to number fail\n",
+			printk(KERN_WARNING "[TP]%s: string to number fail\n",
 								__func__);
 			return count;
 		}
-		printk(KERN_DEBUG "%s: set atmel_reg_addr is: %ld\n",
+		printk(KERN_DEBUG "[TP]%s: set atmel_reg_addr is: %ld\n",
 						__func__, atmel_reg_addr);
 		if (buf[0] == 'w' && buf[5] == ':' && buf[9] == '\n') {
 			memcpy(buf_tmp, buf + 6, 3);
 			ret = strict_strtoul(buf_tmp, 10, &write_da);
-			printk(KERN_DEBUG "write addr: 0x%lX, data: 0x%lX\n",
+			printk(KERN_DEBUG "[TP]write addr: 0x%lX, data: 0x%lX\n",
 						atmel_reg_addr, write_da);
 			ret = i2c_atmel_write_byte_data(ts_data->client,
 						atmel_reg_addr, write_da);
 			if (ret < 0) {
-				printk(KERN_ERR "%s: write fail(%d)\n",
+				printk(KERN_WARNING "[TP]%s: write fail(%d)\n",
 								__func__, ret);
 			}
 		}
@@ -495,7 +495,7 @@ static void regdump_to_kernel(void)
 	for (loop_i = startAddr; loop_i <= endAddr; loop_i++) {
 		ret_t = i2c_atmel_read(ts_data->client, loop_i, ptr, 1);
 		if (ret_t < 0) {
-			printk(KERN_WARNING "dump fail, addr: %d\n",
+			printk(KERN_WARNING "[TP]dump fail, addr: %d\n",
 							loop_i);
 		}
 		count += sprintf(buf + count, "addr[%3d]: %3d, ",
@@ -586,7 +586,7 @@ static ssize_t atmel_diag_show(struct device *dev,
 				get_object_address(ts_data, DIAGNOSTIC_T37), data, 2);
 		}
 		if (loop_j == 10)
-			printk(KERN_ERR "%s: Diag data not ready\n", __func__);
+			printk(KERN_INFO "[TP]%s: Diag data not ready\n", __func__);
 
 		i2c_atmel_read(ts_data->client,
 			get_object_address(ts_data, DIAGNOSTIC_T37) +
@@ -805,7 +805,7 @@ static int check_delta_full(struct atmel_ts_data *ts,
 				get_object_address(ts, DIAGNOSTIC_T37), data, 2);
 		}
 		if (loop_j == 10)
-			printk(KERN_ERR "%s:[TP]TOUCH_ERR: Diag data not ready\n", __func__);
+			printk(KERN_ERR "[TP]TOUCH_ERR:%s: Diag data not ready\n", __func__);
 
 		i2c_atmel_read(ts->client,
 			get_object_address(ts, DIAGNOSTIC_T37),
@@ -1403,12 +1403,12 @@ static int wlc_tp_status_handler_func(struct notifier_block *this,
 	struct atmel_ts_data *ts;
 	int wlc_status;
 
-	wlc_status = connect_status ? CONNECTED : NONE;
+	wlc_status = connect_status > 0 ? CONNECTED : NONE;
 	printk(KERN_INFO "[TP]wireless charger %d\n", wlc_status);
 
 	ts = private_ts;
 	if (ts->status)
-		printk(KERN_ERR "[TP]ambigurous wireless charger state\n");
+		printk(KERN_ERR "[TP]TOUCH_ERR:ambigurous wireless charger state\n");
 
 	if (wlc_status != ts->wlc_status) {
 		ts->wlc_status = wlc_status ? CONNECTED : NONE;
@@ -1449,7 +1449,7 @@ static void cable_tp_status_handler_func(int connect_status)
 	ts = private_ts;
 
 #if defined(CONFIG_TOUCHSCREEN_ATMEL_WLS)
-	if (connect_status == 4 || (connect_status == 0 && ts->wlc_status)) {
+	if (connect_status == 4 || (connect_status <= 0 && ts->wlc_status)) {
 		wlc_tp_status_handler_func(NULL, connect_status == 4 ? 1 : 0, NULL);
 		return;
 	}
@@ -1458,9 +1458,10 @@ static void cable_tp_status_handler_func(int connect_status)
 	printk(KERN_INFO "[TP]cable change to %d\n", connect_status);
 
 	if (connect_status != ts->status) {
-		ts->status = connect_status ? CONNECTED : NONE;
+		ts->status = connect_status > 0 ? CONNECTED : NONE;
+		printk(KERN_INFO "[TP]ts->status change to %d\n", ts->status);
 		if (!ts->status && ts->wlc_status)
-			printk(KERN_ERR "[TP]ambigurous wireless charger state\n");
+			printk(KERN_ERR "[TP]TOUCH_ERR:ambigurous wireless charger state\n");
 		if (ts->status && ts->wlc_status) {
 			mutex_lock(&reload_lock);
 			i2c_atmel_write(ts->client,
@@ -1922,7 +1923,7 @@ static int atmel_224e_ts_probe(struct i2c_client *client,
 		cable_connect_type = cable_get_connect_type();
 		if (cable_connect_type == 4)
 			ts->wlc_status = CONNECTED;
-		if (cable_connect_type != 0)
+		if (cable_connect_type > 0)
 			ts->status = CONNECTED;
 #endif
 

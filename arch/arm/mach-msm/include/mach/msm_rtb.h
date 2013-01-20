@@ -15,13 +15,19 @@
 
 enum logk_event_type {
 	LOGK_NONE = 0,
-	LOGK_READL,
-	LOGK_WRITEL,
-	LOGK_LOGBUF,
-	LOGK_HOTPLUG,
-	LOGK_PM,
-	LOGK_OTHER,
+	LOGK_READL = 1,
+	LOGK_WRITEL = 2,
+	LOGK_LOGBUF = 3,
+	LOGK_HOTPLUG = 4,
+	LOGK_CTXID = 5,
+	LOGK_TIMESTAMP = 6,
+	LOGK_PM = 7,
+	/* HTC DEFINE: START FROM 10 */
+	LOGK_IRQ = 10,
+	LOGK_MIGRATE = 11,
 };
+
+#define LOGTYPE_NOPC 0x80
 
 struct msm_rtb_platform_data {
 	unsigned int size;

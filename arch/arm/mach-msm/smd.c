@@ -624,7 +624,6 @@ static void smd_channel_probe_worker(struct work_struct *work)
 	shared = smem_find(ID_CH_ALLOC_TBL, sizeof(*shared) * 64);
 
 	if (!shared) {
-		pr_err("[SMD] %s: allocation table not initialized\n", __func__);
 		return;
 	}
 
@@ -2401,8 +2400,8 @@ int smsm_change_state_ssr(uint32_t smsm_entry,
 	old_state = __raw_readl(SMSM_STATE_ADDR(smsm_entry));
 	new_state = (old_state & ~clear_mask) | set_mask;
 	__raw_writel(new_state, SMSM_STATE_ADDR(smsm_entry));
-	SMSM_DBG("smsm_change_state %x\n", new_state);
-	if(!(clear_mask & SMSM_RESET))
+	SMSM_INFO("smsm_change_state_ssr %x -> %x\n", old_state, new_state);
+	if(!(clear_mask & (SMSM_RESET | SMSM_PRE_RESET)))
 		notify_other_smsm_ssr(SMSM_APPS_STATE, (old_state ^ new_state), kernel_flag);
 
 	spin_unlock_irqrestore(&smem_lock, flags);

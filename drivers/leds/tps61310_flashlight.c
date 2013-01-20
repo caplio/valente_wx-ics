@@ -208,7 +208,7 @@ int tps61310_flashlight_control(int mode)
 	break;
 	case FL_MODE_PRE_FLASH:
 		tps61310_i2c_command(0x05, 0x6A);
-		tps61310_i2c_command(0x00, 0x03);
+		tps61310_i2c_command(0x00, 0x04);
 		gpio_set_value(this_tps61310->strb0, 0);
 		gpio_set_value(this_tps61310->strb1, 1);
 		tps61310_i2c_command(0x01, 0x40);

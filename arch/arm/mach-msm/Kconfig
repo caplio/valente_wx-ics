@@ -773,6 +773,12 @@ config MACH_VALENTE_WX
 	help
 	  Support for the HTC Valente#WX
 
+config MACH_VALENTE_WX
+	depends on ARCH_MSM8960
+	bool "Valente#WX_C9"
+	help
+	  Support for the HTC Valente#WX_C9
+
 config MACH_ELITE_ULK
 	depends on ARCH_MSM8960
 	bool "Elite#ULK"
@@ -784,6 +790,13 @@ config MACH_JEWEL_DD
 	bool "jel_dd"
 	help
 	  Support for the HTC JEWEL_DD
+
+config MACH_EVITA_UTL
+        depends on ARCH_MSM8960
+        bool "Evita#UTL"
+        help
+          Support for the HTC Evita#UTL
+
 endmenu
 
 config MSM_MDP40

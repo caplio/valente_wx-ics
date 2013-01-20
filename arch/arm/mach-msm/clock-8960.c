@@ -5294,6 +5294,7 @@ static struct clk_lookup msm_clocks_8960_v1[] __initdata = {
 	CLK_LOOKUP("cam_clk",		cam1_clk.c,		NULL),
 	CLK_LOOKUP("cam_clk",		cam0_clk.c,	"msm_camera_s5k3h2.0"),
 	CLK_LOOKUP("cam_clk",		cam0_clk.c,	"msm_camera_imx105.0"),
+	CLK_LOOKUP("cam_clk",		cam0_clk.c,	"msm_camera_imx175.0"),
 	CLK_LOOKUP("cam_clk",		cam0_clk.c,	"msm_camera_s5k4e5.0"),
 	CLK_LOOKUP("cam_clk",		cam1_clk.c,	"msm_camera_mt9v113.0"),
 	CLK_LOOKUP("cam_clk",		cam1_clk.c,	"msm_camera_s5k6aafx.0"),
@@ -5804,12 +5805,12 @@ static void __init msm8960_clock_init(void)
 
 	xo_pxo = msm_xo_get(MSM_XO_PXO, "clock-8960");
 	if (IS_ERR(xo_pxo)) {
-		pr_err("%s: msm_xo_get(PXO) failed.\n", __func__);
+		pr_err("[K] %s: msm_xo_get(PXO) failed.\n", __func__);
 		BUG();
 	}
 	xo_cxo = msm_xo_get(MSM_XO_CXO, "clock-8960");
 	if (IS_ERR(xo_cxo)) {
-		pr_err("%s: msm_xo_get(CXO) failed.\n", __func__);
+		pr_err("[K] %s: msm_xo_get(CXO) failed.\n", __func__);
 		BUG();
 	}
 

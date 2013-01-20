@@ -177,6 +177,7 @@ struct camera_flash_cfg {
 	int (*camera_flash)(int level);
 	uint16_t low_temp_limit;
 	uint16_t low_cap_limit;
+	uint16_t low_cap_limit_dual;
 	uint8_t postpone_led_mode;
 	struct camera_flash_info *flash_info;	/* Andrew_Cheng linear led 20111205 */
 };
@@ -202,6 +203,15 @@ struct msm_camera_rawchip_info {
 	int (*camera_rawchip_power_off)(void);
 	int (*rawchip_use_ext_1v2)(void);
 };
+
+/* HTC_START_Simon.Ti_Liu_20120702_Enhance_bypass */
+enum rawchip_enable_type {
+	RAWCHIP_DISABLE,
+	RAWCHIP_ENABLE,
+	RAWCHIP_DXO_BYPASS,
+	RAWCHIP_MIPI_BYPASS,
+};
+/* HTC_END*/
 
 enum msm_camera_type {
 	BACK_CAMERA_2D,
@@ -524,9 +534,11 @@ struct msm_vidc_platform_data {
 	u32 enable_ion;
 	int disable_dmx;
 	int disable_fullhd;
+	u32 cp_enabled;
 #ifdef CONFIG_MSM_BUS_SCALING
 	struct msm_bus_scale_pdata *vidc_bus_client_pdata;
 #endif
+	int cont_mode_dpb_count;
 };
 
 #if defined(CONFIG_USB_PEHCI_HCD) || defined(CONFIG_USB_PEHCI_HCD_MODULE)
@@ -669,4 +681,5 @@ extern int emmc_partition_read_proc(char *page, char **start, off_t off,
 
 extern int dying_processors_read_proc(char *page, char **start, off_t off,
 				int count, int *eof, void *data);
+extern int get_partition_num_by_name(char *name);
 #endif

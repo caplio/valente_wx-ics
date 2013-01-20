@@ -35,6 +35,13 @@
 
 #define Q6_EFFECT_DEBUG 0
 
+//htc audio ++
+#undef pr_info
+#undef pr_err
+#define pr_info(fmt, ...) pr_aud_info(fmt, ##__VA_ARGS__)
+#define pr_err(fmt, ...) pr_aud_err(fmt, ##__VA_ARGS__)
+//htc audio --
+
 static struct audio_locks the_locks;
 
 /*
@@ -100,26 +107,27 @@ static void compr_event_handler(uint32_t opcode,
 {
 	struct compr_audio *compr = priv;
 	struct msm_audio *prtd = &compr->prtd;
-	struct snd_pcm_substream *substream = prtd->substream;
-	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct snd_pcm_substream *substream = NULL;
+	struct snd_pcm_runtime *runtime = NULL;
 	struct audio_aio_write_param param;
 	struct audio_buffer *buf = NULL;
 	int i = 0;
 
+	/*HTC AUDIO Start*/
+	if (!(prtd->substream && prtd->substream->runtime)) {
+		printk(KERN_WARNING "[AUD] compr_event_handler(), no substream instance, return\n");
+		return;
+	} else {
+		substream = prtd->substream;
+		runtime = substream->runtime;
+	}
+	/*HTC AUDIO End*/
 	pr_debug("[AUD]%s opcode =%08x, start %d +++\n", __func__, opcode, ((&prtd!=NULL)?atomic_read(&prtd->start):-1));
 	switch (opcode) {
 	case ASM_DATA_EVENT_WRITE_DONE: {
 		uint32_t *ptrmem = (uint32_t *)&param;
 		pr_debug("[AUD]%s ASM_DATA_EVENT_WRITE_DONE\n", __func__);
 		pr_debug("[AUD]%s Buffer Consumed = 0x%08x\n", __func__, *ptrmem);
-
-		if(substream == NULL){
-			printk(KERN_WARNING "[AUD] compr_event_handler(), no substream instance, return\n");
-			break;
-		}else if (substream->runtime == NULL){
-			printk(KERN_WARNING "[AUD] compr_event_handler(), no runtime instance, return\n");
-			break;
-		}
 
 		prtd->pcm_irq_pos += prtd->pcm_count;
 		if (atomic_read(&prtd->start))
@@ -338,6 +346,32 @@ static int msm_compr_open(struct snd_pcm_substream *substream)
 	}
 	runtime->hw = msm_compr_hardware_playback;
 
+//HTC_AUD +++
+	/*
+	 * to invoke q6asm_open_write() before opening adm_open()
+	 * issue: LPASS cannot handle data stream properly when switching
+	 * from non-tunnel to tunnel mode
+	 *
+	 * the change fixes data format as MP3 which lost extensiblity
+	 * should be take care when new codecs supported
+	 */
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		ret = q6asm_open_write(prtd->audio_client, FORMAT_MP3);
+		if (ret < 0) {
+			pr_err("[AUD]%s: Session out open failed\n", __func__);
+			q6asm_audio_client_free(prtd->audio_client);
+			kfree(prtd);
+			return -ENOMEM;
+		}
+		ret = q6asm_set_io_mode(prtd->audio_client, ASYNC_IO_MODE);
+		if (ret < 0) {
+			pr_err("[AUD]%s: Set IO mode failed\n", __func__);
+			q6asm_audio_client_free(prtd->audio_client);
+			kfree(prtd);
+			return -ENOMEM;
+		}
+	}
+//HTC_AUD ---
 	pr_info("[AUD]%s: session ID %d\n", __func__, prtd->audio_client->session);
 
 	prtd->session_id = prtd->audio_client->session;
@@ -504,6 +538,7 @@ static int msm_compr_hw_params(struct snd_pcm_substream *substream,
 	else
 		return -EINVAL;
 
+/* comment by HTC_AUD: moved to msm_compr_open()
 	ret = q6asm_open_write(prtd->audio_client, compr->codec);
 	if (ret < 0) {
 		pr_err("[AUD]%s: Session out open failed\n", __func__);
@@ -514,6 +549,7 @@ static int msm_compr_hw_params(struct snd_pcm_substream *substream,
 		pr_err("[AUD]%s: Set IO mode failed\n", __func__);
 		return -ENOMEM;
 	}
+*/
 
 	ret = q6asm_audio_client_buf_alloc_contiguous(dir,
 			prtd->audio_client,

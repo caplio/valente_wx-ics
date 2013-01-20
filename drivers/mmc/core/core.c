@@ -40,6 +40,9 @@
 #include "sd_ops.h"
 #include "sdio_ops.h"
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/mmcio.h>
+
 static struct workqueue_struct *workqueue;
 static struct wake_lock mmc_removal_work_wake_lock;
 
@@ -132,6 +135,9 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 		if (mrq->data) {
 #ifdef CONFIG_MMC_PERF_PROFILING
 			diff = ktime_sub(ktime_get(), host->perf.start);
+			if (host->tp_enable)
+				trace_mmc_request_done(cmd->opcode, mrq->cmd->arg,
+						mrq->data->blocks, ktime_to_ms(diff));
 			if (mrq->data->flags == MMC_DATA_READ) {
 				host->perf.rbytes_drv +=
 						mrq->data->bytes_xfered;
@@ -1207,6 +1213,11 @@ int mmc_resume_bus(struct mmc_host *host)
 		host->bus_ops->detect(host);
 
 	mmc_bus_put(host);
+	if (ret) {
+		spin_lock_irqsave(&host->lock, flags);
+		host->bus_resume_flags |= MMC_BUSRESUME_NEEDS_RESUME;
+		spin_unlock_irqrestore(&host->lock, flags);
+	}
 	pr_info("%s: Deferred resume %s\n", mmc_hostname(host),
 		(ret == 0 ? "completed" : "Fail"));
 	return ret;
@@ -1483,6 +1494,7 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 	struct mmc_command cmd = {0};
 	unsigned int qty = 0;
 	int err;
+	ktime_t start, diff;
 
 	/*
 	 * qty is used to calculate the erase timeout which depends on how many
@@ -1514,6 +1526,7 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 		to <<= 9;
 	}
 
+	start = ktime_get();
 	if (mmc_card_sd(card))
 		cmd.opcode = SD_ERASE_WR_BLK_START;
 	else
@@ -1575,6 +1588,9 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 	} while (!(cmd.resp[0] & R1_READY_FOR_DATA) ||
 		 R1_CURRENT_STATE(cmd.resp[0]) == 7);
 out:
+	diff = ktime_sub(ktime_get(), start);
+	if (card->host->tp_enable)
+		trace_mmc_request_done(MMC_ERASE, from, to - from, ktime_to_ms(diff));
 	return err;
 }
 
@@ -2098,23 +2114,6 @@ int mmc_resume_host(struct mmc_host *host)
 	return err;
 }
 EXPORT_SYMBOL(mmc_resume_host);
-
-#ifdef CONFIG_MMC_CPRM_SUPPORT
-/* For [3 party] tony */
-int mmc_read_card_info(struct mmc_card *card)
-{
-	return mmc_sd_get_card_info(card);
-}
-EXPORT_SYMBOL(mmc_read_card_info);
-
-int mmc_read_sd_status(struct mmc_card *card)
-{
-	return mmc_sd_read_sd_status(card);
-}
-EXPORT_SYMBOL(mmc_read_sd_status);
-/* 2012-03-26 */
-#endif
-
 
 /* Do the card removal on suspend if card is assumed removeable
  * Do that in pm notifier while userspace isn't yet frozen, so we will be able

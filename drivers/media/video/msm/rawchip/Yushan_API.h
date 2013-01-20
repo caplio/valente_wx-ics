@@ -1,6 +1,11 @@
 #ifndef _YUSHAN_API_H_
 #define _YUSHAN_API_H_
 
+
+#ifndef WIN32
+#include <media/linux_rawchip.h>
+#include "rawchip_spi.h"
+#endif
 #ifdef __cplusplus
 extern "C"{
 #endif   /*__cplusplus*/
@@ -18,37 +23,67 @@ Author:		Rajdeep Patel
 Description:API header file.
 ********************************************************************************/
 
-#include <linux/types.h>
-#include <mach/board.h>
-#include <media/linux_rawchip.h>
-#include <linux/platform_device.h>
-
-#include "yushan_registermap.h"
-#include "DxODOP_regMap.h"
-#include "DxODPP_regMap.h"
-#include "DxOPDP_regMap.h"
 
 
-#include "rawchip_spi.h"
+
+/************************************************************************
+						Debugging
+************************************************************************/
+#define YUSHAN_DEBUG 0
+#if YUSHAN_DEBUG
+	#ifdef WIN32
+		#include <stdio.h>
+		extern	FILE	*fLogFile;
+		extern	FILE	*HtmlFileLog;
+		#define __func__  __FUNCTION__
+		/* #define __func__  "" */
+		#define DEBUGLOG(...)  fprintf(HtmlFileLog, __VA_ARGS__)
+		/* ST debugging log */
+	#else
+		#define DEBUGLOG  pr_info
+	#endif
+#else
+	#define DEBUGLOG(...)	/*  Nothing */
+#endif
+
+#define YUSHAN_VERBOSE 0
+#if YUSHAN_VERBOSE
+	#ifdef WIN32
+		#define VERBOSELOG(...)   fprintf(HtmlFileLog, __VA_ARGS__)
+	#else
+		#define VERBOSELOG  pr_info
+	#endif
+#else
+	#define VERBOSELOG(...)	/*  Nothing */
+#endif
+
+#ifdef WIN32
+	#if YUSHAN_DEBUG == 0
+		#include <stdio.h>
+		extern	FILE	*fLogFile;
+		extern	FILE	*HtmlFileLog;
+		/* ST debugging log */
+		#define __func__  __FUNCTION__
+	#endif
+	#define ERRORLOG(...)   fprintf(HtmlFileLog, __VA_ARGS__)
+#else
+	#define ERRORLOG  pr_err
+#endif
+
 
 
 typedef unsigned char bool_t;
-//typedef unsigned char uint8_t;
-//typedef signed char int8_t;
-//typedef unsigned short uint16_t;
-//typedef unsigned int uint32_t;
+#ifdef WIN32
+/* For types not previously defined in linux\types.h */
+typedef unsigned char uint8_t;
+typedef signed char int8_t;
+typedef unsigned short uint16_t;
+typedef unsigned int uint32_t;
 //typedef float float_t;
-
-// Defined for only proto
-#define ASIC
-#ifdef ASIC
-#define PROTO_SPECIFIC						0
-#else
-#define PROTO_SPECIFIC						1
 #endif
-#define ST_SPECIFIC							1
 
-#define API_MAJOR_VERSION					12
+
+#define API_MAJOR_VERSION					14
 #define API_MINOR_VERSION					0
 
 #define TRUE								1
@@ -112,6 +147,9 @@ typedef unsigned char bool_t;
 #define ADD_INTR_TO_LIST							0x01
 #define	DEL_INTR_FROM_LIST							0x00
 
+#define	INTERRUPT_PAD_0								0x00
+#define	INTERRUPT_PAD_1								0x01
+
 #define TOTAL_INTERRUPT_SETS						14
 #define TOTAL_INTERRUPT_COUNT						83
 #define INTERRUPT_SET_SIZE							0x18
@@ -127,10 +165,6 @@ typedef unsigned char bool_t;
 #define DXO_DOP_BASE_ADDR							0x8000
 #define DXO_DPP_BASE_ADDR							0x10000
 #define DXO_PDP_BASE_ADDR							0x6000
-
-#define DxODOP_bootAddress                          0x6800
-#define DxODPP_bootAddress                          0xd000
-#define DxOPDP_bootAddress                          0x1a00
 
 // IP_RESET_IDs
 
@@ -265,11 +299,11 @@ typedef unsigned char bool_t;
 
 
 
+
 #define TIME_5MS				1
 #define TIME_10MS				2
 #define TIME_20MS				3
 #define TIME_50MS				4
-#define TIME_200MS				5
 
 
 #define YUSHAN_FRAME_FORMAT_NORMAL_MODE		0	
@@ -282,46 +316,14 @@ typedef unsigned char bool_t;
 #define RESET_MODULE						1
 #define	DERESET_MODULE						0
 
-enum yushan_orientation_type {
-	YUSHAN_ORIENTATION_NONE,
-	YUSHAN_ORIENTATION_MIRROR,
-	YUSHAN_ORIENTATION_FLIP,
-	YUSHAN_ORIENTATION_MIRROR_FLIP,
-};
 
-struct yushan_reg_conf {
-	uint16_t addr;
-	uint8_t  data;
-};
-
-struct yushan_reg_t {
-	struct yushan_reg_conf *pdpcode;
-	uint16_t pdpcode_size;
-
-	struct yushan_reg_conf *pdpclib;
-	uint16_t pdpclib_size;
-
-	struct yushan_reg_conf *dppcode;
-	uint16_t dppcode_size;
-
-	struct yushan_reg_conf *dppclib;
-	uint16_t dppclib_size;
-
-	struct yushan_reg_conf *dopcode;
-	uint16_t dopcode_size;
-
-	struct yushan_reg_conf *dopclib;
-	uint16_t dopclib_size;
-
-};
-
-extern struct yushan_reg_t yushan_regs;
+/* Used by Interrupts */
+extern bool_t			gPllLocked;
 
 
 
 // Enum to check DXO constraints
-typedef enum
-{
+typedef enum {
 	DXO_NO_ERR=100,
 	DXO_LINEBLANK_ERR,
 	DXO_FULLLINE_ERR, 
@@ -333,9 +335,14 @@ typedef enum
 }Yushan_DXO_Errors_e;
 
 
+
+
+
+
+
+
 // Frame format
-typedef struct
-{    
+typedef struct {
 	uint16_t 	uwWordcount; 
 	// The count in bytes of each packet which is valid for 
 	// Yushan to recieve
@@ -359,8 +366,7 @@ typedef struct
 
 // Structure containing mandatory registers, which need to be programmed in the 
 // Initialization phase.
-typedef	struct
-{
+typedef	struct {
 	// Number of lanes at Receiver and Transmitter is same
 	// Possible Values are 1,2,3
 	uint8_t 	bNumberOfLanes;
@@ -391,10 +397,8 @@ typedef	struct
 	// during run time
 	uint8_t		bValidWCEntries; /* Defines number of entries defined in the FrameFormat array */
 	Yushan_Frame_Format_t sFrameFormat[15];
-/* Yushan API 10.0 Start */
 	// Number of Dxo setting commands per frame
 	uint8_t		bDxoSettingCmdPerFrame;
-/* Yushan API 10.0 End */
 	/* Flag to decide on using External LDO */
 	bool_t		bUseExternalLDO;
 	
@@ -403,8 +407,7 @@ typedef	struct
 
 
 // Structure to load New context data.
-typedef struct
-{
+typedef struct {
 	// Active pixels in a line( Give the worst case here for stills).
 	uint16_t	uwActivePixels;			// HSize
 	// Line blanking
@@ -416,26 +419,13 @@ typedef struct
 	// Similar as the programming in Yushan_Init_Struct_t
 	uint16_t	uwPixelFormat;
 
-	uint8_t orientation;
-
-	uint16_t 	uwXAddrStart;
-	uint16_t 	uwYAddrStart;
-	uint16_t 	uwXAddrEnd;
-	uint16_t 	uwYAddrEnd;
-	uint16_t 	uwXEvenInc;
-	uint16_t 	uwXOddInc;
-	uint16_t 	uwYEvenInc;
-	uint16_t 	uwYOddInc;
-	uint8_t 	bBinning;
-
 }Yushan_New_Context_Config_t;
 
 
 
 // Page containing pointers to DXO image (UCode). This will be useful for 
 // uploading the DXO image.
-typedef	struct
-{
+typedef	struct {
 	uint8_t 	*pDxoPdpRamImage[2];
 	// Location where DxO Pdp Ram Image is available
 	uint16_t	uwDxoPdpStartAddr;
@@ -471,8 +461,7 @@ typedef	struct
 
 
 // Report Errors in Yushan programming.
-typedef struct
-{
+typedef struct {
 	// Report the Dxo constraint error.
 	uint8_t		bDxoConstraints;
 	// Report the minimu value required against bDxoConstraints.
@@ -488,8 +477,7 @@ typedef struct
 
 // The following information are available DxO Integration doc
 // Image Char information
-typedef	struct
-{	
+typedef	struct {
 	uint8_t 	bImageOrientation;
 	uint16_t 	uwXAddrStart;
 	uint16_t 	uwYAddrStart;
@@ -504,8 +492,7 @@ typedef	struct
 
 
 // Gains
-typedef	struct
-{
+typedef	struct {
 	uint16_t 	uwAnalogGainCodeGR;//Coding to be specified
 	uint16_t 	uwAnalogGainCodeR;
 	uint16_t 	uwAnalogGainCodeB;
@@ -518,14 +505,9 @@ typedef	struct
 }Yushan_GainsExpTime_t;
 
 
-typedef struct
-{
-	uint8_t value;
-}Yushan_DXO_DOP_afStrategy_t;
 
 // DXO_DPP Tuning
-typedef	struct
-{
+typedef	struct {
 	//uint16_t 	uwSaturationValue;				// Removed as per Dxo recommendations
 	uint8_t 	bTemporalSmoothing;   
 	uint16_t 	uwFlashPreflashRating;
@@ -535,8 +517,7 @@ typedef	struct
 
 
 // DXO_DOP Tuning
-typedef	struct
-{
+typedef	struct {
 	//uint16_t 	uwForceClosestDistance;			// Removed as per Dxo recommendations
 	//uint16_t 	uwForceFarthestDistance;
 	uint8_t 	bEstimationMode;
@@ -553,8 +534,7 @@ typedef	struct
 
 
 /* DXO_PDP Tuning */
-typedef	struct
-{
+typedef	struct {
 	uint8_t 	bDeadPixelCorrectionLowGain;
 	uint8_t 	bDeadPixelCorrectionMedGain;
 	uint8_t 	bDeadPixelCorrectionHiGain;
@@ -565,36 +545,32 @@ typedef	struct
 
 /* DxODOP_ROI_active_number: */
 /* Specified how many ROIs are valid and needs programming */
-typedef struct
-{
+typedef struct {
 	uint8_t		bDxoDopRoiActiveNumber;
 }Yushan_DXO_ROI_Active_Number_t;
 
 
 
 /* AF ROI */
-typedef	struct
-{
+typedef	struct {
 	uint8_t 	bXStart;
 	uint8_t 	bYStart;
 	uint8_t 	bXEnd;
 	uint8_t 	bYEnd;
 }Yushan_AF_ROI_t;
 
-#if 0
 /* AF stats */
-typedef struct
-{
+typedef struct {
 	uint32_t 	udwAfStatsGreen;
 	uint32_t 	udwAfStatsRed;
 	uint32_t 	udwAfStatsBlue;
 	uint32_t 	udwAfStatsConfidence;
 }Yushan_AF_Stats_t;
-#endif
+
+
 
 /* Version Information */
-typedef struct
-{
+typedef struct {
 	uint32_t 	udwDopVersion;
 	uint32_t 	udwDppVersion;
 	uint32_t 	udwPdpVersion;
@@ -606,71 +582,27 @@ typedef struct
 }Yushan_Version_Info_t;
 
 
-#define RAWCHIP_INT_TYPE_ERROR (0x01<<0)
-#define RAWCHIP_INT_TYPE_NEW_FRAME (0x01<<1)
-#define RAWCHIP_INT_TYPE_PDP_EOF_EXECCMD (0x01<<2)
-#define RAWCHIP_INT_TYPE_DPP_EOF_EXECCMD (0x01<<3)
-#define RAWCHIP_INT_TYPE_DOP_EOF_EXECCMD (0x01<<4)
 
-struct rawchip_sensor_init_data {
-	uint8_t spi_clk;
-	uint8_t ext_clk;
-	uint8_t lane_cnt;
-	uint8_t orientation;
-	uint8_t use_ext_1v2;
-	uint16_t bitrate;
-	uint16_t width;
-	uint16_t height;
-	uint16_t blk_pixels;
-	uint16_t blk_lines;
-	uint16_t x_addr_start;
-	uint16_t y_addr_start;
-	uint16_t x_addr_end;
-	uint16_t y_addr_end;
-	uint16_t x_even_inc;
-	uint16_t x_odd_inc;
-	uint16_t y_even_inc;
-	uint16_t y_odd_inc;
-	uint8_t binning_rawchip;
-};
-
-typedef enum {
-  RAWCHIP_NEWFRAME_ACK_NOCHANGE,
-  RAWCHIP_NEWFRAME_ACK_ENABLE,
-  RAWCHIP_NEWFRAME_ACK_DISABLE,
-} rawchip_newframe_ack_enable_t;
-
-typedef struct {
-  uint16_t gain;
-  uint16_t exp;
-} rawchip_aec_params_t;
-
-typedef struct {
-  uint8_t rg_ratio; /* Q6 format */
-  uint8_t bg_ratio; /* Q6 format */
-} rawchip_awb_params_t;
-
-typedef struct {
-  int update;
-  rawchip_aec_params_t aec_params;
-  rawchip_awb_params_t awb_params;
-} rawchip_update_aec_awb_params_t;
-
-typedef struct {
-  uint8_t active_number;
-  Yushan_AF_ROI_t sYushanAfRoi[5];
-} rawchip_af_params_t;
-
-typedef struct {
-  int update;
-  rawchip_af_params_t af_params;
-} rawchip_update_af_params_t;
-
+/****************************************************************************************
+							EXTERNAL MACROS
+****************************************************************************************/
+#define Yushan_DXO_Sync_Reset_Dereset(bFlagResetOrDereset) 	SPI_Write(YUSHAN_RESET_CTRL+3, 1, &bFlagResetOrDereset)
 
 /****************************************************************************************
 							EXTERNAL FUNCTIONS
 ****************************************************************************************/
-#define Yushan_DXO_Sync_Reset_Dereset(bFlagResetOrDereset) 	SPI_Write(YUSHAN_RESET_CTRL+3, 1, &bFlagResetOrDereset)
+#ifdef WIN32
+/* Base SPI Funtions: To be provided by Host. */
+bool_t	SPI_Read( uint16_t uwIndex , uint16_t uwCount , uint8_t * pData);
+bool_t	SPI_Write( uint16_t uwIndex , uint16_t uwCount , uint8_t * pData);
+#endif
+
+
+
+
+
+
+
 
 /* Initialization API function */
 bool_t	Yushan_Init_LDO(bool_t	bUseExternalLDO);
@@ -686,19 +618,18 @@ bool_t	Yushan_Update_DxoDpp_TuningParameters(Yushan_DXO_DPP_Tuning_t * sDxoDppTu
 bool_t	Yushan_Update_DxoDop_TuningParameters(Yushan_DXO_DOP_Tuning_t * sDxoDopTuning);
 bool_t	Yushan_Update_Commit(uint8_t  bPdpMode, uint8_t  bDppMode, uint8_t  bDopMode);
 
-/* Interrupt functions */
-bool_t	Yushan_Intr_Enable(uint8_t *pIntrMask);
-bool_t Yushan_WaitForInterruptEvent(uint8_t,uint32_t);
-bool_t Yushan_WaitForInterruptEvent2 (uint8_t bInterruptId ,uint32_t udwTimeOut);
-void	Yushan_ISR(void);
-void	Yushan_ISR2(void);
-void	Yushan_Intr_Status_Read (uint8_t *bListOfInterrupts);
-void	Yushan_Read_IntrEvent(uint8_t bIntrSetID, uint32_t *udwListOfInterrupts);
-void	Yushan_AddnRemoveIDInList(uint8_t bInterruptID, uint32_t *udwListOfInterrupts, bool_t fAddORClear);
-bool_t	Yushan_CheckForInterruptIDInList(uint8_t bInterruptID);//, uint32_t *udwListOfInterrupts);
-bool_t	Yushan_Intr_Status_Clear(uint8_t *bListOfInterrupts);
 
-uint8_t Yushan_parse_interrupt(void);
+
+
+/* Interrupt functions */
+void	Yushan_AssignInterruptGroupsToPad1(uint16_t	uwAssignITRGrpToPad1);
+bool_t	Yushan_Intr_Enable(uint8_t *pIntrMask);
+void	Yushan_Intr_Status_Read (uint8_t *bListOfInterrupts, bool_t	fSelect_Intr_Pad);
+void	Yushan_Read_IntrEvent(uint8_t bIntrSetID, uint32_t *udwListOfInterrupts);
+bool_t	Yushan_Intr_Status_Clear(uint8_t *bListOfInterrupts);
+bool_t	Yushan_Check_Pad_For_IntrID(uint8_t	bInterruptId);
+void	Yushan_AddnRemoveIDInList(uint8_t bInterruptID, uint32_t *udwListOfInterrupts, bool_t fAddORClear);
+bool_t	Yushan_CheckForInterruptIDInList(uint8_t bInterruptID, uint32_t *udwProtoInterruptList);
 
 
 
@@ -716,6 +647,7 @@ bool_t Yushan_Invert_Rx_Pins (bool_t fClkLane, bool_t fDataLane1, bool_t fDataLa
 bool_t Yushan_Enter_Standby_Mode (void);
 bool_t Yushan_Exit_Standby_Mode(Yushan_Init_Struct_t * sInitStruct);
 bool_t Yushan_Assert_Reset(uint32_t bModuleMask, uint8_t bResetORDeReset);
+bool_t  Yushan_Update_DxoDop_Af_Strategy(uint8_t  bAfStrategy);
 bool_t Yushan_AF_ROI_Update(Yushan_AF_ROI_t  *sYushanAfRoi, uint8_t bNumOfActiveRoi);
 bool_t	Yushan_PatternGenerator(Yushan_Init_Struct_t * sInitStruct, uint8_t	bPatternReq, bool_t	bDxoBypassForTestPattern);
 void	Yushan_DCPX_CPX_Enable(void);
@@ -728,29 +660,13 @@ uint32_t	Yushan_ConvertTo16p16FP(uint16_t);
 
 
 /* Status Functions */
-bool_t	Yushan_ContextUpdate_Wrapper(Yushan_New_Context_Config_t	*sYushanNewContextConfig);
-bool_t Yushan_Dxo_Dop_Af_Run(Yushan_AF_ROI_t	*sYushanAfRoi, uint32_t *pAfStatsGreen, uint8_t	bRoiActiveNumber);
-int Yushan_Get_Version(rawchip_dxo_version* dxo_version);
-int Yushan_Set_AF_Strategy(uint8_t* set_af_register);
-bool_t Yushan_get_AFSU(Yushan_AF_Stats_t* sYushanAFStats);
-/*
-int Yushan_get_AFSU(uint32_t *pAfStatsGreen);
-*/
-#if 0
-bool_t Yushan_Read_AF_Statistics(uint32_t  *sYushanAFStats);
-#endif
-void Reset_Yushan(void);
+bool_t Yushan_Read_AF_Statistics(Yushan_AF_Stats_t* sYushanAFStats, uint8_t	bNumOfActiveRoi, uint16_t *frameIdx);
 
-void select_mode(uint8_t mode);
+/* DXO Bypass functions */
+void	Yushan_DXO_DTFilter_Bypass(void);
+void	Yushan_DXO_Lecci_Bypass(void);
 
-int Yushan_sensor_open_init(struct rawchip_sensor_init_data data);
-void Yushan_dump_register(void);
-void Yushan_dump_all_register(void);
-
-int Yushan_Update_AEC_AWB_Params(rawchip_update_aec_awb_params_t *update_aec_awb_params);
-int Yushan_Update_AF_Params(rawchip_update_af_params_t *update_af_params);
-int Yushan_Update_3A_Params(rawchip_newframe_ack_enable_t enable_newframe_ack);
-
+void	Yushan_Status_Snapshot(void);
 
 #ifdef __cplusplus
 }

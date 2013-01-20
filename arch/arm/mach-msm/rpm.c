@@ -310,8 +310,15 @@ static int msm_rpm_set_exclusive(int ctx,
 		!= ctx_mask);
 	BUG_ON(memcmp(sel_masks, sel_masks_ack, sizeof(sel_masks_ack)));
 
-	return (ctx_mask_ack & msm_rpm_get_ctx_mask(MSM_RPM_CTX_REJECTED))
-		? -ENOSPC : 0;
+	if (ctx_mask_ack & msm_rpm_get_ctx_mask(MSM_RPM_CTX_REJECTED)) {
+		pr_warn("[K] %s: following request is rejected by rpm\n", __func__);
+		for (i = 0; i < count; i++)
+				pr_warn("[K] %s: id: %d, value: %d\n", __func__, req[i].id, req[i].value);
+
+		return -ENOSPC;
+	} else {
+		return 0;
+	}
 }
 
 /* Upon return, the <req> array will contain values from the ack page.
@@ -377,8 +384,15 @@ static int msm_rpm_set_exclusive_noirq(int ctx,
 		!= ctx_mask);
 	BUG_ON(memcmp(sel_masks, sel_masks_ack, sizeof(sel_masks_ack)));
 
-	return (ctx_mask_ack & msm_rpm_get_ctx_mask(MSM_RPM_CTX_REJECTED))
-		? -ENOSPC : 0;
+	if (ctx_mask_ack & msm_rpm_get_ctx_mask(MSM_RPM_CTX_REJECTED)) {
+		pr_warn("[K] %s: following request is rejected by rpm\n", __func__);
+		for (i = 0; i < count; i++)
+				pr_warn("[K] %s: id: %d, value: %d\n", __func__, req[i].id, req[i].value);
+
+		return -ENOSPC;
+	} else {
+		return 0;
+	}
 }
 
 /* Upon return, the <req> array will contain values from the ack page.
@@ -425,11 +439,11 @@ retry:
 		rc = mutex_lock_interruptible(&msm_rpm_mutex);
 		if (rc) {
 			if (retry_count++ < 50) {
-				pr_err("%s: interrupted system call makes %d request fail, retry...(%d)\n", __func__, req[0].id, retry_count);
+				pr_warn("[K] %s: interrupted system call makes %d request fail, retry...(%d)\n", __func__, req[0].id, retry_count);
 				msleep(5);
 				goto retry;
 			} else {
-				pr_err("%s: interrupted system call makes %d request fail too many times\n", __func__, req[0].id);
+				pr_err("[K] %s: interrupted system call makes %d request fail too many times\n", __func__, req[0].id);
 				goto set_common_exit;
 			}
 		}
@@ -559,7 +573,7 @@ static void msm_rpm_initialize_notification(void)
 void msm_rpm_print_sleep_tick(void)
 {
 	uint32_t *mpm_sleep_tick = (void *) (MSM_RPM_MPM_BASE + 0x24);
-	pr_info("MPM_SLEEP_TICK: %llums\n", ((uint64_t)(*mpm_sleep_tick) * 1000) >> 15);
+	pr_info("[K] MPM_SLEEP_TICK: %llums\n", ((uint64_t)(*mpm_sleep_tick) * 1000) >> 15);
 }
 EXPORT_SYMBOL(msm_rpm_print_sleep_tick);
 
@@ -934,7 +948,7 @@ int __init msm_rpm_init(struct msm_rpm_platform_data *data)
 		void *imem_loc = ioremap_nocache(IMEM_DEBUG_LOC, 4);
 		rpm_memtest = kmalloc(1024*4, GFP_KERNEL);
 		pa_memtest_rpm = __pa(rpm_memtest);
-		pr_info("RPMTest address: %x\n", pa_memtest_rpm);
+		pr_info("[K] RPMTest address: %x\n", pa_memtest_rpm);
 
 		for(i = 0; i < 1024; i++) {
 			rpm_memtest[i] = 0xEFBEADDE;
@@ -954,7 +968,7 @@ int __init msm_rpm_init(struct msm_rpm_platform_data *data)
 	if ((get_kernel_flag() & KERNEL_FLAG_RPM_DISABLE_WATCHDOG) && msm_rpm_stat_data)
 		msm_rpm_stat_data->rpm_debug_mode |= RPM_DEBUG_DISABLE_WATCHDOG;
 
-	pr_info("%s : rpm_debug_mode : 0x%x\n", __func__, msm_rpm_stat_data->rpm_debug_mode);
+	pr_info("[K] %s : rpm_debug_mode : 0x%x\n", __func__, msm_rpm_stat_data->rpm_debug_mode);
 #endif
 
 	fw_major = msm_rpm_read(MSM_RPM_PAGE_STATUS,
@@ -963,11 +977,11 @@ int __init msm_rpm_init(struct msm_rpm_platform_data *data)
 					MSM_RPM_STATUS_ID_VERSION_MINOR);
 	fw_build = msm_rpm_read(MSM_RPM_PAGE_STATUS,
 					MSM_RPM_STATUS_ID_VERSION_BUILD);
-	pr_info("%s: RPM firmware %u.%u.%u\n", __func__,
+	pr_info("[K] %s: RPM firmware %u.%u.%u\n", __func__,
 			fw_major, fw_minor, fw_build);
 
 	if (fw_major != RPM_MAJOR_VER) {
-		pr_err("%s: RPM version %u.%u.%u incompatible with "
+		pr_err("[K] %s: RPM version %u.%u.%u incompatible with "
 				"this driver version %u.%u.%u\n", __func__,
 				fw_major, fw_minor, fw_build,
 				RPM_MAJOR_VER, RPM_MINOR_VER, RPM_BUILD_VER);
@@ -987,14 +1001,14 @@ int __init msm_rpm_init(struct msm_rpm_platform_data *data)
 			IRQF_TRIGGER_RISING | IRQF_NO_SUSPEND,
 			"rpm_drv", msm_rpm_ack_interrupt);
 	if (rc) {
-		pr_err("%s: failed to request irq %d: %d\n",
+		pr_err("[K] %s: failed to request irq %d: %d\n",
 			__func__, irq, rc);
 		return rc;
 	}
 
 	rc = irq_set_irq_wake(irq, 1);
 	if (rc) {
-		pr_err("%s: failed to set wakeup irq %u: %d\n",
+		pr_err("[K] %s: failed to set wakeup irq %u: %d\n",
 			__func__, irq, rc);
 		return rc;
 	}
@@ -1010,14 +1024,14 @@ void msm_rpm_dump_stat(void)
 	int i = 0, j = 0;
 
 	if (msm_rpm_stat_data) {
-		pr_info("%s: %u, %llums, %u, %llums, 0x%x, 0x%x\n", __func__,
+		pr_info("[K] %s: %u, %llums, %u, %llums, 0x%x, 0x%x\n", __func__,
 			msm_rpm_stat_data->stats[RPM_STAT_XO_SHUTDOWN_COUNT].value,
 			((uint64_t)msm_rpm_stat_data->stats[RPM_STAT_XO_SHUTDOWN_TIME].value * 1000) >> 15,
 			msm_rpm_stat_data->stats[RPM_STAT_VDD_MIN_COUNT].value,
 			((uint64_t)msm_rpm_stat_data->stats[RPM_STAT_VDD_MIN_TIME].value * 1000) >> 15,
 			msm_rpm_stat_data->mpm_int_status[0], msm_rpm_stat_data->mpm_int_status[1]);
 		for (i = 0; i < RPM_MASTER_COUNT; i++) {
-			pr_info("sleep_info_m.%d - %llums, %llums, %d %d %d %d, 0x%x 0x%x\n", i, ((uint64_t)msm_rpm_stat_data->wake_info[i].timestamp * 1000) >> 15,
+			pr_info("[K] sleep_info_m.%d - %llums, %llums, %d %d %d %d, 0x%x 0x%x\n", i, ((uint64_t)msm_rpm_stat_data->wake_info[i].timestamp * 1000) >> 15,
 				((uint64_t)msm_rpm_stat_data->sleep_info[i].timestamp * 1000) >> 15, msm_rpm_stat_data->sleep_info[i].cxo,
 				msm_rpm_stat_data->sleep_info[i].pxo, msm_rpm_stat_data->sleep_info[i].vdd_mem,
 				msm_rpm_stat_data->sleep_info[i].vdd_dig, msm_rpm_stat_data->mpm_trigger[i][0],
@@ -1049,13 +1063,13 @@ void msm_rpm_dump_stat(void)
 	int i = 0;
 
 	if (msm_rpm_stat_data) {
-		pr_info("%s: %u, %llums, %u, %llums\n", __func__,
+		pr_info("[K] %s: %u, %llums, %u, %llums\n", __func__,
 			msm_rpm_stat_data->stats[RPM_STAT_XO_SHUTDOWN_COUNT].value,
 			((uint64_t)msm_rpm_stat_data->stats[RPM_STAT_XO_SHUTDOWN_TIME].value * 1000) >> 15,
 			msm_rpm_stat_data->stats[RPM_STAT_VDD_MIN_COUNT].value,
 			((uint64_t)msm_rpm_stat_data->stats[RPM_STAT_VDD_MIN_TIME].value * 1000) >> 15);
 		for (i = 0; i < RPM_MASTER_COUNT; i++) {
-                       pr_info("sleep_info_m.%d - %u (%d), %llums, %d %d %d %d\n", i, msm_rpm_stat_data->sleep_info[i].count,
+                       pr_info("[K] sleep_info_m.%d - %u (%d), %llums, %d %d %d %d\n", i, msm_rpm_stat_data->sleep_info[i].count,
                                (msm_rpm_stat_data->sleep_info[i].stats[0] & 0x1), ((uint64_t)msm_rpm_stat_data->sleep_info[i].total_duration * 1000) >> 15,
 				((msm_rpm_stat_data->sleep_info[i].stats[0] & 0x2) >> 1), ((msm_rpm_stat_data->sleep_info[i].stats[0] & 0x4) >>2),
 				((msm_rpm_stat_data->sleep_info[i].stats[0] & 0xfffffff8) >> 3), msm_rpm_stat_data->sleep_info[i].stats[1]);

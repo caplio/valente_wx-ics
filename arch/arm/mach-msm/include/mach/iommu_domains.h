@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -14,14 +14,17 @@
 #define _ARCH_IOMMU_DOMAINS_H
 
 enum {
-	GLOBAL_DOMAIN,
+	VIDEO_DOMAIN,
+	CAMERA_DOMAIN,
+	DISPLAY_DOMAIN,
+	ROTATOR_DOMAIN,
 	MAX_DOMAINS
 };
 
 enum {
 	VIDEO_FIRMWARE_POOL,
-	LOW_256MB_POOL,
-	HIGH_POOL,
+	VIDEO_MAIN_POOL,
+	GEN_POOL,
 };
 
 
@@ -49,6 +52,11 @@ extern int msm_iommu_map_extra(struct iommu_domain *domain,
 						unsigned long start_iova,
 						unsigned long size,
 						int cached);
+
+//HTC_START Jason Huang 20120419 --- Create HTC own iommu_map_range API.
+extern int htc_iommu_map_range(struct iommu_domain *domain, unsigned long va,
+			 phys_addr_t pa, int size, int prot);
+//HTC_END
 
 #else
 static inline struct iommu_domain
@@ -88,6 +96,14 @@ static inline int msm_iommu_map_extra(struct iommu_domain *domain,
 {
 	return -ENODEV;
 }
+
+//HTC_START Jason Huang 20120419 --- Create HTC own iommu_map_range API.
+static inline int htc_iommu_map_range(struct iommu_domain *domain, unsigned long va,
+			 phys_addr_t pa, int size, int prot)
+{
+	return -ENODEV;
+}
+//HTC_END
 #endif
 
 #endif

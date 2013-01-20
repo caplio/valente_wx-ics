@@ -166,12 +166,12 @@ skip:	ldr	r0, =saved_state
 	sub	r1, r1, r0
 	bl	v7_flush_kern_dcache_area
 
+	set_cpu_foot_print_virt 1
+
 	mrc     p15, 0, r4, c1, c0, 0    /* read current CR    */
 	bic     r0, r4, #(1 << 2)        /* clear dcache bit   */
 	bic     r0, r0, #(1 << 12)       /* clear icache bit   */
 	mcr     p15, 0, r0, c1, c0, 0    /* disable d/i cache  */
-
-	set_cpu_foot_print_virt 1
 
 	dsb
 #ifdef CONFIG_ARCH_MSM_KRAIT

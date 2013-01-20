@@ -111,7 +111,6 @@
 #include "rpm_log.h"
 #include "smd_private.h"
 #include "pm-boot.h"
-#include <linux/htc_irda.h>
 
 #include <linux/htc_flashlight.h>
 #include <mach/board_htc.h>
@@ -287,8 +286,8 @@ struct pm8xxx_mpp_init {
 	PM8XXX_GPIO_INIT(_gpio, PM_GPIO_DIR_OUT, PM_GPIO_OUT_BUF_CMOS, _val, \
 			PM_GPIO_PULL_UP_30, PM_GPIO_VIN_L17, \
 			PM_GPIO_STRENGTH_LOW, \
-			PM_GPIO_FUNC_NORMAL, 0, 0)			
-			
+			PM_GPIO_FUNC_NORMAL, 0, 0)
+
 
 /* Initial PM8921 GPIO configurations */
 static struct pm8xxx_gpio_init pm8921_gpios[] __initdata = {
@@ -355,7 +354,11 @@ static struct i2c_board_info nmi625_i2c_info[] = {
 #define MSM_PMEM_ADSP_SIZE         0x6D00000
 #define MSM_PMEM_ADSP2_SIZE        0x700000
 #define MSM_PMEM_AUDIO_SIZE        0x2B4000
+#ifdef CONFIG_MSM_IOMMU
+#define MSM_PMEM_SIZE 0x00000000 /* 0 Mbytes */
+#else
 #define MSM_PMEM_SIZE 0x4000000 /* 64 Mbytes */
+#endif
 #define MSM_LIQUID_PMEM_SIZE 0x4000000 /* 64 Mbytes */
 
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
@@ -366,7 +369,11 @@ static struct i2c_board_info nmi625_i2c_info[] = {
 #define MSM_ION_ROTATOR_SIZE	MSM_PMEM_ADSP2_SIZE
 #define MSM_ION_QSECOM_SIZE	0x100000 /* (1MB) */
 #define MSM_ION_MFC_SIZE	0x100000  //SZ_8K
+#ifdef CONFIG_MSM_IOMMU
+#define MSM_ION_HEAP_NUM	7
+#else
 #define MSM_ION_HEAP_NUM	8
+#endif
 #define MSM_LIQUID_ION_MM_SIZE (MSM_ION_MM_SIZE + 0x600000)
 static unsigned int msm_ion_cp_mm_size = MSM_ION_MM_SIZE;
 #else
@@ -473,7 +480,7 @@ static struct memtype_reserve msm8960_reserve_table[] __initdata = {
 
 #if defined(CONFIG_MSM_RTB)
 static struct msm_rtb_platform_data msm_rtb_pdata = {
-	.size = SZ_1K,
+	.size = SZ_1M,
 };
 
 static int __init msm_rtb_set_buffer_size(char *p)
@@ -618,6 +625,7 @@ static struct ion_platform_data ion_pdata = {
 			.memory_type = ION_EBI_TYPE,
 			.extra_data = (void *) &cp_mfc_ion_pdata,
 		},
+#ifndef CONFIG_MSM_IOMMU
 		{
 			.id	= ION_SF_HEAP_ID,
 			.type	= ION_HEAP_TYPE_CARVEOUT,
@@ -626,6 +634,7 @@ static struct ion_platform_data ion_pdata = {
 			.memory_type = ION_EBI_TYPE,
 			.extra_data = (void *) &co_ion_pdata,
 		},
+#endif
 		{
 			.id	= ION_IOMMU_HEAP_ID,
 			.type	= ION_HEAP_TYPE_IOMMU,
@@ -1025,6 +1034,23 @@ static struct platform_device msm_fb_device = {
 	.resource          = msm_fb_resources,
 	.dev.platform_data = &msm_fb_pdata,
 };
+
+#ifdef CONFIG_MSM_CAMERA
+static void config_cam_id(int status)
+{
+	static uint32_t cam_id_gpio_start[] = {
+		GPIO_CFG(VALENTE_WX_MAIN_CAM_ID, 1, GPIO_CFG_INPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA),
+	};
+
+	static uint32_t cam_id_gpio_end[] = {
+		GPIO_CFG(VALENTE_WX_MAIN_CAM_ID, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+	};
+	pr_info("config_cam_id(): status=%d\n",status);
+	if(status)
+		gpio_tlmm_config(cam_id_gpio_start[0], GPIO_CFG_ENABLE);
+	else
+		gpio_tlmm_config(cam_id_gpio_end[0], GPIO_CFG_ENABLE);
+}
 
 #ifdef CONFIG_MSM_CAMERA_FLASH
 static struct msm_camera_sensor_flash_src msm_flash_src = {
@@ -1583,24 +1609,24 @@ static struct camera_led_est msm_camera_sensor_s5k3h2yx_led_table[] = {
 		.led_state = FL_MODE_FLASH_LEVEL2,
 		.current_ma = 200,
 		.lumen_value = 250,//245,//240,   //mk0118
-		.min_step = 29,//23,  //mk0210
-		.max_step = 128
+		.min_step = 58,//23,  //mk0210
+		.max_step = 256
 	},
 		{
 		.enable = 1,
 		.led_state = FL_MODE_FLASH_LEVEL3,
 		.current_ma = 300,
 		.lumen_value = 350,
-		.min_step = 27,
-		.max_step = 28			
+		.min_step = 54,
+		.max_step = 57
 	},
 		{
 		.enable = 1,
 		.led_state = FL_MODE_FLASH_LEVEL4,
 		.current_ma = 400,
 		.lumen_value = 440,
-		.min_step = 25,
-		.max_step = 26
+		.min_step = 50,
+		.max_step = 53
 	},
 //		{
 //		.enable = 0,
@@ -1615,8 +1641,8 @@ static struct camera_led_est msm_camera_sensor_s5k3h2yx_led_table[] = {
 		.led_state = FL_MODE_FLASH_LEVEL6,
 		.current_ma = 600,
 		.lumen_value = 625,
-		.min_step = 23,
-		.max_step = 24
+		.min_step = 46,
+		.max_step = 49
 	},
 //		{
 //		.enable = 0,
@@ -1632,7 +1658,7 @@ static struct camera_led_est msm_camera_sensor_s5k3h2yx_led_table[] = {
 		.current_ma = 750,
 		.lumen_value = 745,//725,   //mk0217  //mk0221
 		.min_step = 0,
-		.max_step = 22    //mk0210
+		.max_step = 45    //mk0210
 	},
 
 		{
@@ -1744,6 +1770,263 @@ struct platform_device valente_wx_camera_sensor_s5k3h2yx = {
 	},
 };
 #endif
+#ifdef CONFIG_IMX175
+static int valente_wx_imx175_vreg_on(void)
+{
+	int rc;
+	pr_info("[CAM] %s\n", __func__);
+
+	/* VCM */
+	rc = camera_sensor_power_enable("8921_l17", 2850000, &reg_8921_l17);
+
+	if (rc < 0) {
+		pr_err("[CAM] sensor_power_enable\
+			(\"8921_l9\", 2.8V) FAILED %d\n", rc);
+		goto enable_vcm_fail;
+	}
+	mdelay(1);
+
+    /* VANA */
+	rc = camera_sensor_power_enable("8921_l9", 2800000, &reg_8921_l9);
+	if (rc < 0) {
+		pr_err("[CAM] sensor_power_enable\
+			(\"8921_l9\", 2.8V) FAILED %d\n", rc);
+		goto enable_vana_fail;
+	}
+	mdelay(1);
+
+	/* VDIG */
+	rc = camera_sensor_power_enable("8921_lvs6", 1800000, &reg_8921_lvs6);
+	if (rc < 0) {
+		pr_err("[CAM] sensor_power_enable\
+			(\"8921_lvs6\", 1.8V) FAILED %d\n", rc);
+		goto enable_vdig_fail;
+	}
+
+	return rc;
+
+enable_vdig_fail:
+	camera_sensor_power_disable(reg_8921_l9);
+enable_vana_fail:
+enable_vcm_fail:
+	return rc;
+}
+
+static int valente_wx_imx175_vreg_off(void)
+{
+	int rc = 0;
+
+	pr_info("[CAM] %s\n", __func__);
+
+	/* VANA */
+	rc = camera_sensor_power_disable(reg_8921_l9);
+	if (rc < 0)
+		pr_err("[CAM] sensor_power_disable\
+			(\"8921_l9\") FAILED %d\n", rc);
+	mdelay(1);
+
+	/* VDIG */
+	rc = camera_sensor_power_disable(reg_8921_lvs6);
+	if (rc < 0)
+		pr_err("[CAM] sensor_power_disable\
+			(\"8921_lvs6\") FAILED %d\n", rc);
+
+	mdelay(1);
+
+	/* VCM */
+	if (valente_wx_use_ext_1v2() == 0)/*XA only*/
+		rc = camera_sensor_power_disable(reg_8921_l9);
+
+	if (rc < 0)
+		pr_err("[CAM] sensor_power_disable\
+			(\"8921_l9\") FAILED %d\n", rc);
+
+	return rc;
+}
+
+#ifdef CONFIG_IMX175_ACT
+static struct i2c_board_info imx175_actuator_i2c_info = {
+	I2C_BOARD_INFO("imx175_act", 0x11),
+};
+
+static struct msm_actuator_info imx175_actuator_info = {
+	.board_info     = &imx175_actuator_i2c_info,
+	.bus_id         = MSM_8960_GSBI4_QUP_I2C_BUS_ID,
+	.vcm_pwd        = VALENTE_WX_CAM_VCM_PD,
+	.vcm_enable     = 1,
+};
+#endif
+
+static struct msm_camera_sensor_platform_info sensor_imx175_board_info = {
+	.mount_angle = 90,
+	.mirror_flip = CAMERA_SENSOR_MIRROR_FLIP,
+	.sensor_reset_enable = 0,
+	.sensor_reset	= 0,
+	.sensor_pwd	= VALENTE_WX_CAM_PWDN,
+	.vcm_pwd	= VALENTE_WX_CAM_VCM_PD,
+	.vcm_enable	= 1,
+};
+
+/* Andrew_Cheng linear led 20111205 MB */
+//150 mA FL_MODE_FLASH_LEVEL1
+//200 mA FL_MODE_FLASH_LEVEL2
+//300 mA FL_MODE_FLASH_LEVEL3
+//400 mA FL_MODE_FLASH_LEVEL4
+//500 mA FL_MODE_FLASH_LEVEL5
+//600 mA FL_MODE_FLASH_LEVEL6
+//700 mA FL_MODE_FLASH_LEVEL7
+static struct camera_led_est msm_camera_sensor_imx175_led_table[] = {
+	{
+		.enable = 1,
+		.led_state = FL_MODE_FLASH_LEVEL2,
+		.current_ma = 200,
+		.lumen_value = 250,//245,//240,   //mk0118
+		.min_step = 58,//23,  //mk0210
+		.max_step = 256
+	},
+	{
+		.enable = 1,
+		.led_state = FL_MODE_FLASH_LEVEL3,
+		.current_ma = 300,
+		.lumen_value = 350,
+		.min_step = 54,
+		.max_step = 57
+	},
+	{
+		.enable = 1,
+		.led_state = FL_MODE_FLASH_LEVEL4,
+		.current_ma = 400,
+		.lumen_value = 440,
+		.min_step = 50,
+		.max_step = 53
+	},
+	{
+		.enable = 1,
+		.led_state = FL_MODE_FLASH_LEVEL6,
+		.current_ma = 600,
+		.lumen_value = 625,
+		.min_step = 46,
+		.max_step = 49
+	},
+	{
+		.enable = 1,
+		.led_state = FL_MODE_FLASH,
+		.current_ma = 750,
+		.lumen_value = 745,//725,   //mk0217  //mk0221
+		.min_step = 0,
+		.max_step = 45    //mk0210
+	},
+	{
+		.enable = 2,
+		.led_state = FL_MODE_FLASH_LEVEL2,
+		.current_ma = 200,
+		.lumen_value = 250,//245,
+		.min_step = 0,
+		.max_step = 270
+	},
+	{
+		.enable = 0,
+		.led_state = FL_MODE_OFF,
+		.current_ma = 0,
+		.lumen_value = 0,
+		.min_step = 0,
+		.max_step = 0
+	},
+	{
+		.enable = 0,
+		.led_state = FL_MODE_TORCH,
+		.current_ma = 150,
+		.lumen_value = 150,
+		.min_step = 0,
+		.max_step = 0
+	},
+	{
+		.enable = 2,     //mk0210
+		.led_state = FL_MODE_FLASH,
+		.current_ma = 750,
+		.lumen_value = 745,//725,   //mk0217   //mk0221
+		.min_step = 271,
+		.max_step = 317    //mk0210
+	},
+	{
+		.enable = 0,
+		.led_state = FL_MODE_FLASH_LEVEL5,
+		.current_ma = 500,
+		.lumen_value = 500,
+		.min_step = 25,
+		.max_step = 26
+	},
+	{
+		.enable = 0,//3,  //mk0210
+		.led_state = FL_MODE_FLASH,
+		.current_ma = 750,
+		.lumen_value = 750,//740,//725,
+		.min_step = 271,
+		.max_step = 325
+	},
+	{
+		.enable = 0,
+		.led_state = FL_MODE_TORCH_LEVEL_2,
+		.current_ma = 200,
+		.lumen_value = 75,
+		.min_step = 0,
+		.max_step = 40
+	},
+};
+
+static struct camera_led_info msm_camera_sensor_imx175_led_info = {
+	.enable = 1,
+	.low_limit_led_state = FL_MODE_TORCH,
+	.max_led_current_ma = 750,  //mk0210
+	.num_led_est_table = ARRAY_SIZE(msm_camera_sensor_imx175_led_table),
+};
+
+static struct camera_flash_info msm_camera_sensor_imx175_flash_info = {
+	.led_info = &msm_camera_sensor_imx175_led_info,
+	.led_est_table = msm_camera_sensor_imx175_led_table,
+};
+
+static struct camera_flash_cfg msm_camera_sensor_imx175_flash_cfg = {
+	.low_temp_limit		= 5,
+	.low_cap_limit		= 15,
+	.low_cap_limit_dual		= 30, //for power restrict in dual mode
+	.flash_info             = &msm_camera_sensor_imx175_flash_info,
+};
+/* Andrew_Cheng linear led 20111205 ME */
+
+static struct msm_camera_sensor_flash_data flash_imx175 = {
+	.flash_type	= MSM_CAMERA_FLASH_LED,
+#ifdef CONFIG_MSM_CAMERA_FLASH
+	.flash_src	= &msm_flash_src,
+#endif
+
+};
+
+static struct msm_camera_sensor_info msm_camera_sensor_imx175_data = {
+	.sensor_name	= "imx175",
+	.camera_power_on = valente_wx_imx175_vreg_on,
+	.camera_power_off = valente_wx_imx175_vreg_off,
+	.pdata	= &msm_camera_csi_device_data[0],
+	.flash_data	= &flash_imx175,
+	.sensor_platform_info = &sensor_imx175_board_info,
+	.gpio_conf = &gpio_conf,
+	.csi_if	= 1,
+	.camera_type = BACK_CAMERA_2D,
+#ifdef CONFIG_IMX175_ACT
+	.actuator_info = &imx175_actuator_info,
+#endif
+	.use_rawchip = 1,
+	.flash_cfg = &msm_camera_sensor_imx175_flash_cfg, /* Andrew_Cheng linear led 20111205 */
+};
+
+struct platform_device valente_wx_camera_sensor_imx175 = {
+	.name	= "msm_camera_imx175",
+	.dev	= {
+		.platform_data = &msm_camera_sensor_imx175_data,
+	},
+};
+#endif
+
 #ifdef CONFIG_S5K6AAFX
 static int valente_wx_s5k6aafx_vreg_on(void)
 {
@@ -1884,7 +2167,7 @@ static struct msm_camera_sensor_info msm_camera_sensor_s5k6aafx_data = {
 	.use_rawchip = 0,
 	.mirror_mode = 1,
 	.power_down_disable = false, /* true: disable pwd down function */
-	.full_size_preview = false, /* true: use full size preview */
+	.full_size_preview = true, /* true: use full size preview */
 };
 
 struct platform_device valente_wx_camera_sensor_s5k6aafx = {
@@ -1894,7 +2177,81 @@ struct platform_device valente_wx_camera_sensor_s5k6aafx = {
 	},
 };
 #endif
+#endif
 
+#ifdef CONFIG_I2C
+#define I2C_SURF 1
+#define I2C_FFA  (1 << 1)
+#define I2C_RUMI (1 << 2)
+#define I2C_SIM  (1 << 3)
+#define I2C_FLUID (1 << 4)
+#define I2C_LIQUID (1 << 5)
+
+struct i2c_registry {
+	u8                     machs;
+	int                    bus;
+	struct i2c_board_info *info;
+	int                    len;
+};
+
+#ifdef CONFIG_MSM_CAMERA
+static struct i2c_board_info msm_camera_boardinfo[] __initdata = {
+#ifdef CONFIG_S5K3H2YX
+	{
+	I2C_BOARD_INFO("s5k3h2yx", 0x20 >> 1),
+	},
+#endif
+#ifdef CONFIG_S5K6AAFX
+	{
+	I2C_BOARD_INFO("s5k6aafx", 0x5a >> 1), /* COB type */
+	},
+#endif
+#ifdef CONFIG_MSM_CAMERA_FLASH_SC628A
+	{
+	I2C_BOARD_INFO("sc628a", 0x6E),
+	},
+#endif
+};
+
+/* Due to OV8830 0x20 slave addr is the same 3H2 */
+static struct i2c_board_info msm_2nd_camera_boardinfo[] __initdata = {
+#ifdef CONFIG_IMX175
+	{
+	I2C_BOARD_INFO("imx175", 0x20 >> 1),
+	},
+#endif
+#ifdef CONFIG_S5K6AAFX
+	{
+	I2C_BOARD_INFO("s5k6aafx", 0x5a >> 1), /* COB type */
+	},
+#endif
+#ifdef CONFIG_MSM_CAMERA_FLASH_SC628A
+	{
+	I2C_BOARD_INFO("sc628a", 0x6E),
+	},
+#endif
+};
+#endif
+
+static struct i2c_registry msm8960_main_source_camera_i2c_devices[] __initdata = {
+	{
+		I2C_SURF | I2C_FFA | I2C_FLUID | I2C_LIQUID | I2C_RUMI,
+		MSM_8960_GSBI4_QUP_I2C_BUS_ID,
+		msm_camera_boardinfo,
+		ARRAY_SIZE(msm_camera_boardinfo),
+	},
+};
+
+static struct i2c_registry msm8960_2nd_source_camera_i2c_devices[] __initdata = {
+	{
+		I2C_SURF | I2C_FFA | I2C_FLUID | I2C_LIQUID | I2C_RUMI,
+		MSM_8960_GSBI4_QUP_I2C_BUS_ID,
+		msm_2nd_camera_boardinfo,
+		ARRAY_SIZE(msm_2nd_camera_boardinfo),
+	},
+};
+#endif
+#ifdef CONFIG_MSM_CAMERA
 static void __init msm8960_init_cam(void)
 {
 	int i;
@@ -1905,14 +2262,42 @@ static void __init msm8960_init_cam(void)
 #ifdef CONFIG_S5K6AAFX
 		&valente_wx_camera_sensor_s5k6aafx,
 #endif
-
 	};
 
-	for (i = 0; i < ARRAY_SIZE(cam_dev); i++) {
-		struct msm_camera_sensor_info *s_info;
-		s_info = cam_dev[i]->dev.platform_data;
-		msm_get_cam_resources(s_info);
-		platform_device_register(cam_dev[i]);
+	struct platform_device *cam_dev_1[] = {
+#ifdef CONFIG_IMX175
+		&valente_wx_camera_sensor_imx175,
+#endif
+#ifdef CONFIG_S5K6AAFX
+		&valente_wx_camera_sensor_s5k6aafx,
+#endif
+	};
+
+	config_cam_id(1); /* detect camera sensor start*/
+	msleep(2);
+
+	if (gpio_get_value(VALENTE_WX_MAIN_CAM_ID) == 0){
+		for (i = 0; i < ARRAY_SIZE(cam_dev); i++) {
+			struct msm_camera_sensor_info *s_info;
+			s_info = cam_dev[i]->dev.platform_data;
+			msm_get_cam_resources(s_info);
+			platform_device_register(cam_dev[i]);
+		}
+
+		i2c_register_board_info(msm8960_main_source_camera_i2c_devices[0].bus,
+					msm8960_main_source_camera_i2c_devices[0].info,
+					msm8960_main_source_camera_i2c_devices[0].len);
+	}else{ /* for OV8830 2nd Source */
+		for (i = 0; i < ARRAY_SIZE(cam_dev_1); i++) {
+			struct msm_camera_sensor_info *s_info;
+			s_info = cam_dev_1[i]->dev.platform_data;
+			msm_get_cam_resources(s_info);
+			platform_device_register(cam_dev_1[i]);
+		}
+
+		i2c_register_board_info(msm8960_2nd_source_camera_i2c_devices[0].bus,
+					msm8960_2nd_source_camera_i2c_devices[0].info,
+					msm8960_2nd_source_camera_i2c_devices[0].len);
 	}
 	platform_device_register(&msm8960_device_csiphy0);
 	platform_device_register(&msm8960_device_csiphy1);
@@ -1921,7 +2306,10 @@ static void __init msm8960_init_cam(void)
 	platform_device_register(&msm8960_device_ispif);
 	platform_device_register(&msm8960_device_vfe);
 	platform_device_register(&msm8960_device_vpe);
+
+	config_cam_id(0); /* detect camera sensor end*/
 }
+#endif
 
 #ifdef CONFIG_HTC_BATT_8960
 static struct htc_battery_platform_data htc_battery_pdev_data = {
@@ -2150,7 +2538,7 @@ static struct msm_panel_common_pdata mdp_pdata = {
 #endif
 	.mdp_rev = MDP_REV_42,
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-	.mem_hid = ION_CP_MM_HEAP_ID,
+	.mem_hid = BIT(ION_CP_MM_HEAP_ID),
 #else
 	.mem_hid = MEMTYPE_EBI1,
 #endif
@@ -2520,20 +2908,22 @@ int cy8c_cs_reset(void)
 
 struct cy8c_i2c_cs_platform_data cs_cy8c_data[] = {
 	{
-		.gpio_irq = PM8921_GPIO_PM_TO_SYS(VALENTE_WX_PMGPIO_CAP_SENSOR_INTz),
-		.gpio_rst = PM8921_GPIO_PM_TO_SYS(VALENTE_WX_PMGPIO_CAP_RST),
-		.reset    = cy8c_cs_reset,
-		.keycode  = {KEY_BACK, KEY_HOME, KEY_APP_SWITCH},
-		.id       = {
+		.gpio_irq     = PM8921_GPIO_PM_TO_SYS(VALENTE_WX_PMGPIO_CAP_SENSOR_INTz),
+		.gpio_rst     = PM8921_GPIO_PM_TO_SYS(VALENTE_WX_PMGPIO_CAP_RST),
+		.reset        = cy8c_cs_reset,
+		.keycode      = {KEY_BACK, KEY_HOME, KEY_APP_SWITCH},
+		.func_support = CS_FUNC_PRINTRAW,
+		.id           = {
 			.config = CS_KEY_3,
 		},
 	},
         {
-                .gpio_irq = PM8921_GPIO_PM_TO_SYS(VALENTE_WX_PMGPIO_CAP_SENSOR_INTz),
-                .gpio_rst = PM8921_GPIO_PM_TO_SYS(VALENTE_WX_PMGPIO_CAP_RST),
-                .reset    = cy8c_cs_reset,
-                .keycode  = {KEY_HOME, KEY_APP_SWITCH, KEY_BACK, 0},
-                .id       = {
+                .gpio_irq     = PM8921_GPIO_PM_TO_SYS(VALENTE_WX_PMGPIO_CAP_SENSOR_INTz),
+                .gpio_rst     = PM8921_GPIO_PM_TO_SYS(VALENTE_WX_PMGPIO_CAP_RST),
+                .reset        = cy8c_cs_reset,
+                .keycode      = {KEY_HOME, KEY_APP_SWITCH, KEY_BACK, 0},
+                .func_support = CS_FUNC_PRINTRAW,
+                .id           = {
                         .config = CS_KEY_4,
                 },
         },
@@ -2677,6 +3067,7 @@ int64_t valente_wx_get_usbid_adc(void)
 static void mhl_sii9234_1v2_power(bool enable);
 static void valente_wx_usb_dpdn_switch(int path);
 
+
 static uint32_t usbuart_pin_enable_usb_table[] = {
 	GPIO_CFG(VALENTE_WX_MHL_USB_ENz, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
 };
@@ -2695,7 +3086,7 @@ static void valente_wx_usb_uart_switch(int nvbus)
 	else {
 		if(nvbus == 1) { /* vbus gone, pin pull up */
 			gpio_tlmm_config(usbuart_pin_enable_uart_table[0], GPIO_CFG_ENABLE);
-		} else {	/* vbus present, pin pull low */
+		} else {        /* vbus present, pin pull low */
 			gpio_tlmm_config(usbuart_pin_enable_usb_table[0], GPIO_CFG_ENABLE);
 		}
 	}
@@ -2958,8 +3349,6 @@ static void valente_wx_usb_dpdn_switch(int path)
 static struct regulator *reg_s4;
 static struct regulator *reg_l12;
 static struct regulator *reg_l11;
-static struct regulator *reg_8921_l10;
-static struct regulator *reg_8921_s2;
 
 uint32_t msm_hdmi_off_gpio[] = {
 	GPIO_CFG(VALENTE_WX_HDMI_DDC_CLK,  0, GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),
@@ -2976,62 +3365,6 @@ uint32_t msm_hdmi_on_gpio[] = {
 void hdmi_hpd_feature(int enable);
 
 static int mhl_sii9234_all_power(bool enable);
-static int mhl_sii9234_power_vote(bool enable)
-{
-	int rc;
-
-	if (!reg_8921_l10) {
-		_GET_REGULATOR(reg_8921_l10, "8921_l10");
-		rc = regulator_set_voltage(reg_8921_l10, 3000000, 3000000);
-                if (rc) {
-                        pr_err("%s: regulator_set_voltage reg_8921_l10 failed rc=%d\n",
-                                __func__, rc);
-                        return rc;
-                }
-	}
-	if (!reg_8921_s2) {
-		_GET_REGULATOR(reg_8921_s2, "8921_s2");
-                rc = regulator_set_voltage(reg_8921_s2, 1300000, 1300000);
-                if (rc) {
-                        pr_err("%s: regulator_set_voltage reg_8921_s2 failed rc=%d\n",
-                                __func__, rc);
-                        return rc;
-                }
-
-	}
-
-	if (enable) {
-                if (reg_8921_l10) {
-                        rc = regulator_enable(reg_8921_l10);
-                        if (rc)
-                                pr_warning("'%s' regulator enable failed, rc=%d\n",
-                                        "reg_8921_l10", rc);
-                }
-                if (reg_8921_s2) {
-                        rc = regulator_enable(reg_8921_s2);
-                        if (rc)
-                                pr_warning("'%s' regulator enable failed, rc=%d\n",
-                                        "reg_8921_s2", rc);
-                }
-		pr_info("%s(on): success\n", __func__);
-	} else {
-		if (reg_8921_l10) {
-			rc = regulator_disable(reg_8921_l10);
-			if (rc)
-				pr_warning("'%s' regulator disable failed, rc=%d\n",
-					"reg_8921_l10", rc);
-		}
-		if (reg_8921_s2) {
-			rc = regulator_disable(reg_8921_s2);
-			if (rc)
-				pr_warning("'%s' regulator disable failed, rc=%d\n",
-					"reg_8921_s2", rc);
-		}
-		pr_info("%s(off): success\n", __func__);
-	}
-	return 0;
-}
-
 
 static void mhl_sii9234_1v2_power(bool enable)
 {
@@ -3156,7 +3489,6 @@ static T_MHL_PLATFORM_DATA mhl_sii9234_device_data = {
 	.mhl_usb_switch		= valente_wx_usb_dpdn_switch,
 	.mhl_1v2_power = mhl_sii9234_1v2_power,
 	.enable_5v = hdmi_enable_5v,
-	.mhl_power_vote = mhl_sii9234_power_vote,
 #ifdef CONFIG_FB_MSM_HDMI_MHL_SUPERDEMO
 	.abs_x_min = 941,/* 0 */
 	.abs_x_max = 31664,/* 32767 */
@@ -3864,7 +4196,7 @@ struct msm_mmc_pin_data mmc_slot_pin_data[MAX_SDCC_CONTROLLER] = {
 };
 
 static unsigned int sdc1_sup_clk_rates[] = {
-	400000, 24000000, 48000000, 51200000, 96000000, 102400000
+	400000, 24000000, 48000000, 96000000
 };
 
 static unsigned int sdc3_sup_clk_rates[] = {
@@ -4494,10 +4826,6 @@ static struct msm_i2c_platform_data msm8960_i2c_qup_gsbi12_pdata = {
 	.msm_i2c_config_gpio = gsbi_qup_i2c_gpio_config,
 	.share_uart_flag = 1,	/* check if QUP-I2C and Uart share the gisb */
 };
-
-static struct irda_platform_data msm8960_irda_gsbi12_pdata = {
-	.irda_shutdown_gpio = VALENTE_WX_SIR_SD,
- };
 
 static struct mpu3050_platform_data mpu3050_data = {
 	.int_config = 0x10,
@@ -5370,7 +5698,7 @@ static struct cm3629_platform_data cm36282_pdata = {
 	.model = CAPELLA_CM36282,
 	.ps_select = CM3629_PS1_ONLY,
 	.intr = PM8921_GPIO_PM_TO_SYS(VALENTE_WX_PROXIMITY_INTz),
-	.levels = { 0, 2, 0x60, 0x242, 0x869, 0x14c5, 0x235c, 0x210E, 0x38a6, 65535},
+	.levels = { 0, 2, 0x64, 0xc8, 0x869, 0x1b58, 0x29aa, 0x37fc, 0x4600, 0xffff},
 	.golden_adc = 0x17D4,
 	.power = NULL,
 	.cm3629_slave_address = 0xC0>>1,
@@ -5393,77 +5721,8 @@ static struct i2c_board_info i2c_CM36282_devices[] = {
 	},
 };
 #ifdef CONFIG_I2C
-#define I2C_SURF 1
-#define I2C_FFA  (1 << 1)
-#define I2C_RUMI (1 << 2)
-#define I2C_SIM  (1 << 3)
-#define I2C_FLUID (1 << 4)
-#define I2C_LIQUID (1 << 5)
-
-struct i2c_registry {
-	u8                     machs;
-	int                    bus;
-	struct i2c_board_info *info;
-	int                    len;
-};
-
-#ifdef CONFIG_MSM_CAMERA
-static struct i2c_board_info msm_camera_boardinfo[] __initdata = {
-#ifdef CONFIG_S5K3H2YX
-	{
-		I2C_BOARD_INFO("s5k3h2yx", 0x20 >> 1),
-	},
-#endif
-#ifdef CONFIG_S5K6AAFX
- 	{
-		I2C_BOARD_INFO("s5k6aafx", 0x5a >> 1), /* COB type */
- 	},
-#endif
-#ifdef CONFIG_S5K4E5YX
-	{
-		I2C_BOARD_INFO("s5k4e5yx", 0x20), /* HTC To distinguish between 3h2 and 4e5 */
-	},
-#endif
-#ifdef CONFIG_MT9V113
-	{
-		I2C_BOARD_INFO("mt9v113", 0x3C),
-	},
-#endif
-#ifdef CONFIG_S5K6A1GX
-	{
-		I2C_BOARD_INFO("s5k6a1gx", 0x6C >> 1),
-	},
-#endif
-#ifdef CONFIG_IMX074
-	{
-		I2C_BOARD_INFO("imx074", 0x1A),
-	},
-#endif
-#ifdef CONFIG_OV2720
-	{
-		I2C_BOARD_INFO("ov2720", 0x6C),
-	},
-#endif
-	{
-		I2C_BOARD_INFO("qs_mt9p017", 0x6C >> 1),
-	},
-#ifdef CONFIG_MSM_CAMERA_FLASH_SC628A
-	{
-		I2C_BOARD_INFO("sc628a", 0x6E),
-	},
-#endif
-};
-#endif
 
 static struct i2c_registry msm8960_i2c_devices[] __initdata = {
-#ifdef CONFIG_MSM_CAMERA
-	{
-		I2C_SURF | I2C_FFA | I2C_FLUID | I2C_LIQUID | I2C_RUMI,
-		MSM_8960_GSBI4_QUP_I2C_BUS_ID,
-		msm_camera_boardinfo,
-		ARRAY_SIZE(msm_camera_boardinfo),
-	},
-#endif
 #ifdef CONFIG_FLASHLIGHT_TPS61310
 	{
 		I2C_SURF | I2C_FFA,
@@ -5545,25 +5804,6 @@ static void msm_uart_gsbi_gpio_init(void)
 	gpio_tlmm_config(msm_uart_gpio[1], GPIO_CFG_ENABLE);
 }
 
-/*UART -> GSBI12*/
-static uint32_t msm_uart_gsbi12_gpio[] = {
-	GPIO_CFG(VALENTE_WX_SIR_TX, 1, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA),
-	GPIO_CFG(VALENTE_WX_SIR_RX, 1, GPIO_CFG_INPUT, GPIO_CFG_PULL_UP, GPIO_CFG_8MA),
-};
-static void msm_uart_gsbi12_gpio_init(void)
-{
-	gpio_tlmm_config(msm_uart_gsbi12_gpio[0], GPIO_CFG_ENABLE);
-	gpio_tlmm_config(msm_uart_gsbi12_gpio[1], GPIO_CFG_ENABLE);
-	pr_info("msm_uart_gsbi12_gpio_init() ok!\n");
-}
-
-static void __init msm8960_irda_init(void)
-{
-	msm_uart_gsbi12_gpio_init();
-	msm8960_device_uart_gsbi12.dev.platform_data =
-					&msm8960_irda_gsbi12_pdata;
-}
-
 #ifdef CONFIG_VIDEO_NMI
 static uint32_t oneseg_on_gpio_table[] = {
     GPIO_CFG(VALENTE_WX__1SEG_I2C_SDA, 1, GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_8MA),
@@ -5630,20 +5870,20 @@ int oneseg_set_lna(int enable)
 int oneseg_power(int on)
 {
     int i, rc;
-    
-    if (on) 
+
+    if (on)
     {
         printk(KERN_INFO "[1SEG] %s: on \n", __func__);
-        gpio_set_value(VALENTE_WX_V_1SEG_1V2_EN, 1); 
-        for (i = 0; i < ARRAY_SIZE(oneseg_on_gpio_table); i++) 
+        gpio_set_value(VALENTE_WX_V_1SEG_1V2_EN, 1);
+        for (i = 0; i < ARRAY_SIZE(oneseg_on_gpio_table); i++)
         {
             rc = gpio_tlmm_config(oneseg_on_gpio_table[i], GPIO_CFG_ENABLE);
-            if (rc) 
+            if (rc)
             {
                 printk(KERN_ERR "%s: gpio_tlmm_config(%#x)=%d\n", __func__, oneseg_on_gpio_table[i], rc);
             }
         }
-        
+
         msleep(10);
         pm8xxx_gpio_config(oneseg_enable_pmgpios[1].gpio, &oneseg_enable_pmgpios[1].config);
         msleep(10);
@@ -5651,32 +5891,32 @@ int oneseg_power(int on)
         msleep(1);
         pm8xxx_gpio_config(oneseg_reset_pmgpios[1].gpio, &oneseg_reset_pmgpios[1].config);
         msleep(10);
-        
+
         //Valentewx XB add
         pm8xxx_gpio_config(oneseg_fm_ant_switch_pmgpios[1].gpio, &oneseg_fm_ant_switch_pmgpios[1].config);
         pm8xxx_gpio_config(oneseg_lna_en_pmgpios[1].gpio, &oneseg_lna_en_pmgpios[1].config);
-		
-    } 
-    else 
+
+    }
+    else
     {
         /*Power OFF sequence*/
-        printk(KERN_INFO "[1SEG] %s: off \n", __func__);        
+        printk(KERN_INFO "[1SEG] %s: off \n", __func__);
         //Valentewx XB add
         pm8xxx_gpio_config(oneseg_lna_en_pmgpios[0].gpio, &oneseg_lna_en_pmgpios[0].config);
         pm8xxx_gpio_config(oneseg_fm_ant_switch_pmgpios[0].gpio, &oneseg_fm_ant_switch_pmgpios[0].config);
-        
+
         pm8xxx_gpio_config(oneseg_enable_pmgpios[0].gpio, &oneseg_enable_pmgpios[0].config);
         msleep(5);
-        for (i = 0; i < ARRAY_SIZE(oneseg_off_gpio_table); i++) 
+        for (i = 0; i < ARRAY_SIZE(oneseg_off_gpio_table); i++)
         {
             rc = gpio_tlmm_config(oneseg_off_gpio_table[i], GPIO_CFG_DISABLE);
-            if (rc) 
+            if (rc)
             {
                 printk(KERN_ERR "%s: gpio_tlmm_config(%#x)=%d\n", __func__, oneseg_off_gpio_table[i], rc);
             }
         }
         msleep(5);
-        gpio_set_value(VALENTE_WX_V_1SEG_1V2_EN, 0); 
+        gpio_set_value(VALENTE_WX_V_1SEG_1V2_EN, 0);
 
 	}
     return 0;
@@ -5758,7 +5998,6 @@ static void __init valente_wx_init(void)
 	platform_device_register(&msm8960_device_ext_l2_vreg);
 	platform_add_devices(common_devices, ARRAY_SIZE(common_devices));
 	msm_uart_gsbi_gpio_init();
-	msm8960_irda_init();
 	pm8921_gpio_mpp_init();
 	platform_add_devices(valente_wx_devices, ARRAY_SIZE(valente_wx_devices));
 	msm8960_init_cam();

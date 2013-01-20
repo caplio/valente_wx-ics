@@ -365,7 +365,7 @@ static void projector_send_Key_event(struct projector_dev *dev,
 	   we press power key. Even in GB, default qwerty.kl will not do
 	   anything for linux keycode WAKEUP, i think we can just drop here.
 	*/
-	if (iKeycode == 0)
+	if (iKeycode <= 0 || iKeycode >= sizeof(keypad_code)/sizeof(keypad_code[0]))
 		return;
 
 	input_report_key(kdev, keypad_code[iKeycode], 1);
@@ -374,7 +374,7 @@ static void projector_send_Key_event(struct projector_dev *dev,
 	input_sync(kdev);
 }
 
-extern char *get_fb1_addr(void);
+extern char *get_fb_addr(void);
 
 static void send_fb(struct projector_dev *dev)
 {
@@ -392,7 +392,7 @@ static void send_fb(struct projector_dev *dev)
 #ifdef DUMMY_DISPLAY_MODE
 	frame = test_frame;
 #else
-	frame = get_fb1_addr();
+	frame = get_fb_addr();
 #endif
 	if (frame == NULL)
 		return;
@@ -440,7 +440,7 @@ static void send_fb2(struct projector_dev *dev)
 #ifdef DUMMY_DISPLAY_MODE
 	frame = test_frame;
 #else
-	frame = get_fb1_addr();
+	frame = get_fb_addr();
 #endif
 	if (frame == NULL)
 		return;
@@ -616,7 +616,7 @@ static void projector_get_msmfb(struct projector_dev *dev)
 	dev->bitsPixel = BITSPIXEL;
 	dev->width = fb_info.xres;
 	dev->height = fb_info.yres;
-	dev->fbaddr = get_fb1_addr();
+	dev->fbaddr = get_fb_addr();
 	dev->framesize = dev->width * dev->height * (dev->bitsPixel / 8);
 	printk(KERN_INFO "projector: width %d, height %d framesize %d, %p\n",
 		   fb_info.xres, fb_info.yres, dev->framesize, dev->fbaddr);
@@ -1130,11 +1130,13 @@ static int projector_bind_config(struct usb_configuration *c,
 	DBG("%s\n", __func__);
 	dev = projector_dev;
 
-	ret = usb_string_id(c->cdev);
-	if (ret < 0)
-		goto err_free;
-	projector_string_defs[0].id = ret;
-	projector_interface_desc.iInterface = ret;
+	if (projector_string_defs[0].id == 0) {
+		ret = usb_string_id(c->cdev);
+		if (ret < 0)
+			return ret;
+		projector_string_defs[0].id = ret;
+		projector_interface_desc.iInterface = ret;
+	}
 
 	dev->cdev = c->cdev;
 	dev->function.name = "projector";
@@ -1150,7 +1152,7 @@ static int projector_bind_config(struct usb_configuration *c,
 	dev->bitsPixel = BITSPIXEL;
 	dev->width = fb_info.xres;
 	dev->height = fb_info.yres;
-	dev->fbaddr = get_fb1_addr();
+	dev->fbaddr = get_fb_addr();
 
 	dev->rx_req_count = PROJ_RX_REQ_MAX;
 	dev->tx_req_count = (dev->width * dev->height * 2 / TXN_MAX) + 1;
@@ -1171,7 +1173,7 @@ static int projector_bind_config(struct usb_configuration *c,
 
 	dev->wq_display = create_singlethread_workqueue("projector_mode");
 	if (!dev->wq_display)
-		goto err_free_wq;
+		goto err_free;
 
 	workqueue_set_max_active(dev->wq_display,1);
 
@@ -1187,8 +1189,6 @@ static int projector_bind_config(struct usb_configuration *c,
 
 	return 0;
 
-err_free_wq:
-	destroy_workqueue(dev->wq_display);
 err_free:
 	printk(KERN_ERR "projector gadget driver failed to initialize, err=%d\n", ret);
 	return ret;
@@ -1277,6 +1277,15 @@ static int projector_ctrlrequest(struct usb_composite_dev *cdev,
 			}
 		}
 		value = 0;
+	}
+
+	if (value >= 0) {
+		cdev->req->zero = 0;
+		cdev->req->length = value;
+		value = usb_ep_queue(cdev->gadget->ep0, cdev->req, GFP_ATOMIC);
+		if (value < 0)
+			printk(KERN_ERR "%s setup response queue error\n",
+				__func__);
 	}
 
 	return value;

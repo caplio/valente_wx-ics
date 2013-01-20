@@ -310,6 +310,20 @@ config S5K4E5YX_ACT
 	---help---
 	  Autofocus of s5k4e5yx actuator
 
+config IMX175
+        bool "Sensor IMX175 (BAYER 8M)"
+        depends on MSM_CAMERA && (ARCH_MSM8X60 || ARCH_MSM8960)
+        default n
+        ---help---
+        SONY 8 MP Bayer Sensor
+
+config IMX175_ACT
+        bool "Actuator IMX175 (BAYER 8M)"
+        depends on MSM_CAMERA && ARCH_MSM8960
+        default n
+        ---help---
+        Actuator for SONY 8 MP Bayer Sensor
+
 config MT9V113
 	bool "Sensor mt9v113 (VGA YUV)"
 	default n

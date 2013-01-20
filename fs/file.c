@@ -445,9 +445,10 @@ static void fd_print(struct files_struct *files, unsigned int fd)
 		if (!file_test)
 			continue;
 		else {
-			 printk(KERN_INFO "[FD%d][PID=%d][%s][%s]\n"
+			 printk(KERN_INFO "[FD%d][PID=%d][comm=%s][%s][%s]\n"
 				, i
 				, file_test->record_pid
+				, file_test->record_comm
 				, file_test->f_path.dentry->d_name.name
 				, file_test->f_path.mnt->mnt_mountpoint->d_name.name
 				);

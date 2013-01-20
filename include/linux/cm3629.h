@@ -200,6 +200,7 @@ struct cm3629_platform_data {
 	uint8_t ps2_adc_offset;
 	uint8_t ps_debounce;
 	uint16_t ps_delay_time;
+	unsigned int no_need_change_setting;
 };
 
 #endif

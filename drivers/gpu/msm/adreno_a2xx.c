@@ -836,7 +836,7 @@ static unsigned int *build_sys2gmem_cmds(struct adreno_device *adreno_dev,
 		*cmds++ = cp_type3_packet(CP_REG_TO_MEM, 2);
 		*cmds++ = REG_TP0_CHICKEN;
 		*cmds++ = tmp_ctx.chicken_restore;
- 
+
 		*cmds++ = cp_type3_packet(CP_WAIT_FOR_IDLE, 1);
 		*cmds++ = 0;
 	}
@@ -1307,7 +1307,6 @@ static int a2xx_create_gpustate_shadow(struct adreno_device *adreno_dev,
 	drawctxt->flags |= CTXT_FLAGS_STATE_SHADOW;
 
 	/* build indirect command buffers to save & restore regs/constants */
-	adreno_idle(&adreno_dev->dev, KGSL_TIMEOUT_DEFAULT);
 	build_regrestore_cmds(adreno_dev, drawctxt);
 	build_regsave_cmds(adreno_dev, drawctxt);
 
@@ -1348,8 +1347,6 @@ static int a2xx_create_gmem_shadow(struct adreno_device *adreno_dev,
 		tmp_ctx.cmd = build_chicken_restore_cmds(drawctxt);
 
 	/* build indirect command buffers to save & restore gmem */
-	/* Idle because we are reading PM override registers */
-	adreno_idle(&adreno_dev->dev, KGSL_TIMEOUT_DEFAULT);
 	drawctxt->context_gmem_shadow.gmem_save_commands = tmp_ctx.cmd;
 	tmp_ctx.cmd =
 	    build_gmem2sys_cmds(adreno_dev, drawctxt,
@@ -1424,11 +1421,51 @@ done:
 	return ret;
 }
 
+static void a2xx_drawctxt_draw_workaround(struct adreno_device *adreno_dev,
+			struct adreno_context *context)
+{
+	struct kgsl_device *device = &adreno_dev->dev;
+	unsigned int cmd[11];
+	unsigned int *cmds = &cmd[0];
+
+	adreno_dev->gpudev->ctx_switches_since_last_draw++;
+	/* If there have been > than ADRENO_NUM_CTX_SWITCH_ALLOWED_BEFORE_DRAW
+	 * calls to context switches w/o gmem being saved then we need to
+	 * execute this workaround */
+	if (adreno_dev->gpudev->ctx_switches_since_last_draw >
+		ADRENO_NUM_CTX_SWITCH_ALLOWED_BEFORE_DRAW)
+		adreno_dev->gpudev->ctx_switches_since_last_draw = 0;
+	else
+		return;
+	/*
+	 * Issue an empty draw call to avoid possible hangs due to
+	 * repeated idles without intervening draw calls.
+	 * On adreno 225 the PC block has a cache that is only
+	 * flushed on draw calls and repeated idles can make it
+	 * overflow. The gmem save path contains draw calls so
+	 * this workaround isn't needed there.
+	 */
+	*cmds++ = cp_type3_packet(CP_SET_CONSTANT, 2);
+	*cmds++ = (0x4 << 16) | (REG_PA_SU_SC_MODE_CNTL - 0x2000);
+	*cmds++ = 0;
+	*cmds++ = cp_type3_packet(CP_DRAW_INDX, 5);
+	*cmds++ = 0;
+	*cmds++ = 1<<14;
+	*cmds++ = 0;
+	*cmds++ = device->mmu.setstate_memory.gpuaddr;
+	*cmds++ = 0;
+	*cmds++ = cp_type3_packet(CP_WAIT_FOR_IDLE, 1);
+	*cmds++ = 0x00000000;
+
+	adreno_ringbuffer_issuecmds(device, context,
+				KGSL_CMD_FLAGS_PMODE,
+				    &cmd[0], 11);
+}
+
 static void a2xx_drawctxt_save(struct adreno_device *adreno_dev,
 			struct adreno_context *context)
 {
 	struct kgsl_device *device = &adreno_dev->dev;
-	unsigned int cmd[22];
 
 	if (context == NULL)
 		return;
@@ -1440,12 +1477,13 @@ static void a2xx_drawctxt_save(struct adreno_device *adreno_dev,
 	if (!(context->flags & CTXT_FLAGS_PREAMBLE)) {
 
 		/* save registers and constants. */
-		adreno_ringbuffer_issuecmds(device, KGSL_CMD_FLAGS_NONE,
+		adreno_ringbuffer_issuecmds(device, context,
+			KGSL_CMD_FLAGS_NONE,
 			context->reg_save, 3);
 
 		if (context->flags & CTXT_FLAGS_SHADER_SAVE) {
 			/* save shader partitioning and instructions. */
-			adreno_ringbuffer_issuecmds(device,
+			adreno_ringbuffer_issuecmds(device, context,
 				KGSL_CMD_FLAGS_PMODE,
 				context->shader_save, 3);
 
@@ -1453,9 +1491,10 @@ static void a2xx_drawctxt_save(struct adreno_device *adreno_dev,
 			 * fixup shader partitioning parameter for
 			 *  SET_SHADER_BASES.
 			 */
-			adreno_ringbuffer_issuecmds(device, KGSL_CMD_FLAGS_NONE,
+			adreno_ringbuffer_issuecmds(device, context,
+				KGSL_CMD_FLAGS_NONE,
 				context->shader_fixup, 3);
- 
+
 			context->flags |= CTXT_FLAGS_SHADER_RESTORE;
 		}
 	}
@@ -1465,41 +1504,21 @@ static void a2xx_drawctxt_save(struct adreno_device *adreno_dev,
 		/* save gmem.
 		 * (note: changes shader. shader must already be saved.)
 		 */
-		adreno_ringbuffer_issuecmds(device, KGSL_CMD_FLAGS_PMODE,
+		adreno_ringbuffer_issuecmds(device, context,
+			KGSL_CMD_FLAGS_PMODE,
 			context->context_gmem_shadow.gmem_save, 3);
 
 		/* Restore TP0_CHICKEN */
 		if (!(context->flags & CTXT_FLAGS_PREAMBLE)) {
-			adreno_ringbuffer_issuecmds(device, KGSL_CMD_FLAGS_NONE,
+			adreno_ringbuffer_issuecmds(device, context,
+				KGSL_CMD_FLAGS_NONE,
 				context->chicken_restore, 3);
 		}
+		adreno_dev->gpudev->ctx_switches_since_last_draw = 0;
 
 		context->flags |= CTXT_FLAGS_GMEM_RESTORE;
-	} else if (adreno_is_a225(adreno_dev)) {
-		unsigned int *cmds = &cmd[0];
-		/*
-		 * Issue an empty draw call to avoid possible hangs due to
-		 * repeated idles without intervening draw calls.
-		 * On adreno 225 the PC block has a cache that is only
-		 * flushed on draw calls and repeated idles can make it
-		 * overflow. The gmem save path contains draw calls so
-		 * this workaround isn't needed there.
-		 */
-		*cmds++ = cp_type3_packet(CP_SET_CONSTANT, 2);
-		*cmds++ = (0x4 << 16) | (REG_PA_SU_SC_MODE_CNTL - 0x2000);
-		*cmds++ = 0;
-		*cmds++ = cp_type3_packet(CP_DRAW_INDX, 5);
-		*cmds++ = 0;
-		*cmds++ = 1<<14;
-		*cmds++ = 0;
-		*cmds++ = device->mmu.setstate_memory.gpuaddr;
-		*cmds++ = 0;
-		*cmds++ = cp_type3_packet(CP_WAIT_FOR_IDLE, 1);
-		*cmds++ = 0x00000000;
-
-		adreno_ringbuffer_issuecmds(device, KGSL_CMD_FLAGS_PMODE,
-					    &cmd[0], 11);
-	}
+	} else if (adreno_is_a225(adreno_dev))
+		a2xx_drawctxt_draw_workaround(adreno_dev, context);
 }
 
 static void a2xx_drawctxt_restore(struct adreno_device *adreno_dev,
@@ -1510,7 +1529,8 @@ static void a2xx_drawctxt_restore(struct adreno_device *adreno_dev,
 
 	if (context == NULL) {
 		/* No context - set the default apgetable and thats it */
-		kgsl_mmu_setstate(device, device->mmu.defaultpagetable);
+		kgsl_mmu_setstate(device, device->mmu.defaultpagetable,
+				adreno_dev->drawctxt_active->id);
 		return;
 	}
 
@@ -1522,8 +1542,9 @@ static void a2xx_drawctxt_restore(struct adreno_device *adreno_dev,
 	cmds[3] = device->memstore.gpuaddr +
 		KGSL_DEVICE_MEMSTORE_OFFSET(current_context);
 	cmds[4] = (unsigned int) context;
-	adreno_ringbuffer_issuecmds(device, KGSL_CMD_FLAGS_NONE, cmds, 5);
-	kgsl_mmu_setstate(device, context->pagetable);
+	adreno_ringbuffer_issuecmds(device, context, KGSL_CMD_FLAGS_NONE,
+					cmds, 5);
+	kgsl_mmu_setstate(device, context->pagetable, context->id);
 
 #ifndef CONFIG_MSM_KGSL_CFF_DUMP_NO_CONTEXT_MEM_DUMP
 	kgsl_cffdump_syncmem(NULL, &context->gpustate,
@@ -1535,12 +1556,14 @@ static void a2xx_drawctxt_restore(struct adreno_device *adreno_dev,
 	 *  (note: changes shader. shader must not already be restored.)
 	 */
 	if (context->flags & CTXT_FLAGS_GMEM_RESTORE) {
-		adreno_ringbuffer_issuecmds(device, KGSL_CMD_FLAGS_PMODE,
+		adreno_ringbuffer_issuecmds(device, context,
+			KGSL_CMD_FLAGS_PMODE,
 			context->context_gmem_shadow.gmem_restore, 3);
 
 		if (!(context->flags & CTXT_FLAGS_PREAMBLE)) {
 			/* Restore TP0_CHICKEN */
-			adreno_ringbuffer_issuecmds(device, KGSL_CMD_FLAGS_NONE,
+			adreno_ringbuffer_issuecmds(device, context,
+				KGSL_CMD_FLAGS_NONE,
 				context->chicken_restore, 3);
 		}
 
@@ -1550,17 +1573,25 @@ static void a2xx_drawctxt_restore(struct adreno_device *adreno_dev,
 	if (!(context->flags & CTXT_FLAGS_PREAMBLE)) {
 
 		/* restore registers and constants. */
-		adreno_ringbuffer_issuecmds(device, KGSL_CMD_FLAGS_PMODE,
-			context->reg_restore, 3);
+		adreno_ringbuffer_issuecmds(device, context,
+			KGSL_CMD_FLAGS_NONE, context->reg_restore, 3);
 
 		/* restore shader instructions & partitioning. */
 		if (context->flags & CTXT_FLAGS_SHADER_RESTORE) {
-			adreno_ringbuffer_issuecmds(device,
-				KGSL_CMD_FLAGS_PMODE,
+			adreno_ringbuffer_issuecmds(device, context,
+				KGSL_CMD_FLAGS_NONE,
 				context->shader_restore, 3);
 		}
 	}
+
+	if (adreno_is_a20x(adreno_dev)) {
+		cmds[0] = cp_type3_packet(CP_SET_BIN_BASE_OFFSET, 1);
+		cmds[1] = context->bin_base_offset;
+		adreno_ringbuffer_issuecmds(device, context,
+			KGSL_CMD_FLAGS_NONE, cmds, 2);
+	}
 }
+
 /*
  * Interrupt management
  *
@@ -1752,6 +1783,7 @@ struct adreno_gpudev adreno_a2xx_gpudev = {
 	.ctxt_create = a2xx_drawctxt_create,
 	.ctxt_save = a2xx_drawctxt_save,
 	.ctxt_restore = a2xx_drawctxt_restore,
+	.ctxt_draw_workaround = a2xx_drawctxt_draw_workaround,
 	.irq_handler = a2xx_irq_handler,
 	.irq_control = a2xx_irq_control,
 	.snapshot = a2xx_snapshot,

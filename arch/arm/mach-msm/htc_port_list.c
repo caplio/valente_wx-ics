@@ -54,17 +54,17 @@ static int ril_debug_flag = 0;
 
 #define PF_LOG_DBG(fmt, ...) do {                           \
 		if (ril_debug_flag)                                 \
-			printk(KERN_DEBUG pr_fmt(fmt), ##__VA_ARGS__);  \
+			printk(KERN_DEBUG "[K]" pr_fmt(fmt), ##__VA_ARGS__);  \
 	} while (0)
 
 #define PF_LOG_INFO(fmt, ...) do {                         \
 		if (ril_debug_flag)                                \
-			printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__);  \
+			printk(KERN_INFO "[K]" pr_fmt(fmt), ##__VA_ARGS__);  \
 	} while (0)
 
 #define PF_LOG_ERR(fmt, ...) do {                     \
 	if (ril_debug_flag)                               \
-		printk(KERN_ERR pr_fmt(fmt), ##__VA_ARGS__);  \
+		printk(KERN_ERR "[K]" pr_fmt(fmt), ##__VA_ARGS__);  \
 	} while (0)
 
 static ssize_t htc_show(struct device *dev,  struct device_attribute *attr,  char *buf)
@@ -349,12 +349,6 @@ int add_or_remove_port(struct sock *sk, int add_or_remove)
 
 	/* if TCP packet and source IP != 127.0.0.1 */
 	if (sk->sk_protocol == IPPROTO_TCP && src != 0x0100007F && srcp != 0) {
-		/* Handle TCP_LISTEN only */
-		if (sk->sk_state != TCP_LISTEN) {
-			wake_unlock(&port_suspend_lock);
-			return 0;
-		}
-
 		mutex_lock(&port_lock);
 		PF_LOG_INFO("[Port list] TCP port#: [%d]\n", srcp);
 		if (add_or_remove)

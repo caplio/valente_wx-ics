@@ -34,8 +34,8 @@ struct kgsl_iommu {
 static int kgsl_iommu_pt_equal(struct kgsl_pagetable *pt,
 					unsigned int pt_base)
 {
-	struct iommu_domain *domain = pt->priv;
-	return pt && pt_base && ((unsigned int)domain == pt_base);
+	struct iommu_domain *domain = pt ? pt->priv : NULL;
+	return domain && pt_base && ((unsigned int)domain == pt_base);
 }
 
 static void kgsl_iommu_destroy_pagetable(void *mmu_specific_pt)
@@ -144,7 +144,8 @@ static int kgsl_get_iommu_ctxt(struct kgsl_iommu *iommu,
 }
 
 static void kgsl_iommu_setstate(struct kgsl_device *device,
-				struct kgsl_pagetable *pagetable)
+				struct kgsl_pagetable *pagetable,
+				unsigned int context_id)
 {
 	struct kgsl_mmu *mmu = &device->mmu;
 

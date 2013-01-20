@@ -63,7 +63,7 @@ static void nmea_work_func(struct work_struct *ws)
 		mutex_lock(&nmea_rx_buf_lock);
 		if (smd_read(nmea_devp->ch, nmea_devp->rx_buf, sz) != sz) {
 			mutex_unlock(&nmea_rx_buf_lock);
-			printk(KERN_ERR "nmea: not enough data?!\n");
+			printk(KERN_ERR "[K] nmea: not enough data?!\n");
 			continue;
 		}
 		nmea_devp->bytes_read = sz;
@@ -86,10 +86,10 @@ static void nmea_notify(void *priv, unsigned event)
 		break;
 	}
 	case SMD_EVENT_OPEN:
-		printk(KERN_INFO "nmea: smd opened\n");
+		printk(KERN_INFO "[K] nmea: smd opened\n");
 		break;
 	case SMD_EVENT_CLOSE:
-		printk(KERN_INFO "nmea: smd closed\n");
+		printk(KERN_INFO "[K] nmea: smd closed\n");
 		break;
 	}
 }
@@ -106,7 +106,7 @@ static ssize_t nmea_read(struct file *fp, char __user *buf,
 		/* qualify error message */
 		if (r != -ERESTARTSYS) {
 			/* we get this anytime a signal comes in */
-			printk(KERN_ERR "ERROR:%s:%i:%s: "
+			printk(KERN_ERR "[K] ERROR:%s:%i:%s: "
 				"wait_event_interruptible ret %i\n",
 				__FILE__,
 				__LINE__,
@@ -124,7 +124,7 @@ static ssize_t nmea_read(struct file *fp, char __user *buf,
 	mutex_unlock(&nmea_rx_buf_lock);
 
 	if (r > 0) {
-		printk(KERN_ERR "ERROR:%s:%i:%s: "
+		printk(KERN_ERR "[K] ERROR:%s:%i:%s: "
 			"copy_to_user could not copy %i bytes.\n",
 			__FILE__,
 			__LINE__,

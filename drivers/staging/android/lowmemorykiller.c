@@ -39,6 +39,7 @@
 #include <linux/memory_hotplug.h>
 #include <linux/dcache.h>
 #include <linux/fs.h>
+#include <../../../fs/proc/internal.h>
 
 static uint32_t lowmem_debug_level = 2;
 static int lowmem_adj[6] = {
@@ -84,27 +85,10 @@ static int last_min_adj = OOM_ADJUST_MAX + 1;;
 #define lowmem_print(level, x...)			\
 	do {						\
 		if (lowmem_debug_level >= (level))	\
-			printk(x);			\
+			printk("[K] "x);		\
 	} while (0)
 
-
-static void show_meminfo(void)
-{
-	printk(" free:%lu \n"
-		" active_file:%luK inactive_file:%luK shem:%luK mlock:%luK [cache]\n"
-		" anon:%luK mapped:%luK [PSS]\n"
-		" slab_reclaimable:%luK slab_unreclaimable:%luK\n"
-		" pagetables:%luK\n",
-		global_page_state(NR_FREE_PAGES) << 2,
-		global_page_state(NR_ACTIVE_FILE) << 2,
-		global_page_state(NR_INACTIVE_FILE) << 2,
-		global_page_state(NR_SHMEM) << 2,
-		global_page_state(NR_MLOCK) << 2,
-		(global_page_state(NR_ACTIVE_ANON) + global_page_state(NR_INACTIVE_ANON)) << 2,
-		global_page_state(NR_FILE_MAPPED) << 2,
-		global_page_state(NR_SLAB_RECLAIMABLE) << 2, global_page_state(NR_SLAB_UNRECLAIMABLE) << 2,
-		global_page_state(NR_PAGETABLE) << 2);
-}
+extern void show_meminfo(void);
 
 /**
  * dump_tasks - dump current memory state of all system tasks
@@ -144,7 +128,7 @@ static int shrink_cache_possible(gfp_t gfp_mask) {
 	ret = (gfp_mask & __GFP_FS) &&
 		(dentry_stat.nr_unused > 0 || inodes_stat.nr_unused > 0);
 	if (!ret)
-		lowmem_print(1, "%s: can't shrink page cache anymore\n", __func__);
+		lowmem_print(5, "%s: can't shrink page cache anymore\n", __func__);
 	return ret;
 }
 

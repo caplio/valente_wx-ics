@@ -785,9 +785,12 @@ static void pm8921_show_resume_irq(void)
 	for (i = 0; i < PM8921_NR_IRQS; i++) {
 		irq = i + pm8xxx_get_irq_base(chip);
 		if (pm8xxx_get_irq_wake_stat(chip,irq)) {
-                            if(pm8xxx_get_irq_it_stat(chip, irq))
-					pr_warning("%s: %d triggered\n",
-					__func__, irq);
+			if(pm8xxx_get_irq_it_stat(chip, irq)) {
+				pr_warning("%s: %d triggered\n",
+				__func__, irq);
+				printk("[WAKEUP] Resume caused by pmic-%d\n",
+				irq - (NR_MSM_IRQS + NR_GPIO_IRQS));
+			}
 		}
 	}
 }

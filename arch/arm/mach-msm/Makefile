@@ -58,6 +58,8 @@ else
 obj-$(CONFIG_MSM_SMD) += htc_port_list.o
 endif
 
+obj-y += htc_monitor.o
+
 quiet_cmd_mkrpcsym = MKCAP   $@
       cmd_mkrpcsym = $(PERL) $(srctree)/$(src)/mkrpcsym.pl $< $@
 
@@ -65,7 +67,7 @@ target += smd_rpc_sym.c
 $(obj)/smd_rpc_sym.c: $(src)/smd_rpc_sym $(src)/mkrpcsym.pl
 	$(call if_changed,mkrpcsym)
 
-obj-$(CONFIG_MSM_SCM) += scm.o scm-boot.o htc_simlock-8x60.o htc_drm.o htc_sdservice.o
+obj-$(CONFIG_MSM_SCM) += scm.o scm-boot.o htc_simlock-8x60.o htc_drm.o htc_sdservice.o htc_debug.o
 ifdef CONFIG_ARCH_MSM8960
 	obj-y += tz_log.o scm-memchk.o
 endif
@@ -291,7 +293,14 @@ obj-$(CONFIG_MACH_VALENTE_WX) += display/board-valente_wx-panel.o
 obj-$(CONFIG_MACH_VALENTE_WX) += board-valente_wx-audio.o
 obj-$(CONFIG_MACH_VALENTE_WX) += htc_bdaddress.o htc_util.o
 
+obj-$(CONFIG_MACH_VALENTE_WX) += board-valente_wx.o board-valente_wx-regulator.o board-valente_wx-gpio.o
+obj-$(CONFIG_MACH_VALENTE_WX) += board-valente_wx-keypad.o
+obj-$(CONFIG_MACH_VALENTE_WX) += display/board-valente_wx-panel.o
+obj-$(CONFIG_MACH_VALENTE_WX) += board-valente_wx-audio.o
+obj-$(CONFIG_MACH_VALENTE_WX) += htc_bdaddress.o htc_util.o
+
 ifeq ($(CONFIG_WIMAX),y)
+obj-$(CONFIG_MACH_VALENTE_WX) += board-valente_wx-mmc.o  board-common-wimax.o
 obj-$(CONFIG_MACH_VALENTE_WX) += board-valente_wx-mmc.o  board-common-wimax.o
 endif
 
@@ -313,6 +322,11 @@ obj-$(CONFIG_MACH_KNIGHT) += htc_bdaddress.o htc_util.o
 obj-$(CONFIG_MACH_ELITE_ULK) += board-elite_ulk.o board-elite_ulk-regulator.o board-elite_ulk-gpio.o
 obj-$(CONFIG_MACH_ELITE_ULK) += board-elite_ulk-keypad.o
 obj-$(CONFIG_MACH_ELITE_ULK) += board-elite_ulk-audio.o htc_util.o
+
+obj-$(CONFIG_MACH_EVITA_UTL) += board-evita_utl.o board-evita_utl-regulator.o board-evita_utl-gpio.o
+obj-$(CONFIG_MACH_EVITA_UTL) += board-evita_utl-keypad.o
+obj-$(CONFIG_MACH_EVITA_UTL) += board-evita_utl-audio.o
+obj-$(CONFIG_MACH_EVITA_UTL) += htc_bdaddress.o htc_util.o
 
 # MSM8x60 boards
 obj-$(CONFIG_MACH_PYRAMID) += board-pyramid.o

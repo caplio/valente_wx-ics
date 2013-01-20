@@ -498,7 +498,7 @@ static int __init pm_init(void)
 	int error = pm_start_workqueue();
 #ifdef CONFIG_PERFLOCK
 	int i;
-	char buf[38];
+	static char buf[3][38];
 #endif
 	if (error)
 		return error;
@@ -508,9 +508,9 @@ static int __init pm_init(void)
 #ifdef CONFIG_PERFLOCK
 	perf_lock_init(&user_perf_lock, PERF_LOCK_HIGHEST, "User Perflock");
 	for (i = 0; i < CEILING_LEVEL_INVALID; i++) {
-		snprintf(buf, 37, "User cpufreq_ceiling lock level(%d)", i);
-		buf[37] = '\0';
-		perf_lock_init_v2(&user_cpufreq_ceiling[i], i, buf);
+		snprintf(buf[i], 37, "User cpufreq_ceiling lock level(%d)", i);
+		buf[i][37] = '\0';
+		perf_lock_init_v2(&user_cpufreq_ceiling[i], i, buf[i]);
 	}
 #endif
 	if (!power_kobj)

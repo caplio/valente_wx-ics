@@ -48,6 +48,7 @@ module_param_call(hcismd_set, hcismd_set_enable, param_get_uint, &hcismd_set, 06
 module_param_call(hcismd_set, hcismd_set_enable, NULL, &hcismd_set, 0644);
 #endif /* HTC_BT modify */
 
+static void hci_dev_smd_open(struct work_struct *worker);
 static void hci_dev_restart(struct work_struct *worker);
 
 struct hci_smd_data {
@@ -145,7 +146,7 @@ static void hci_smd_recv_data(void)
 
 	len = smd_read_avail(hsmd->data_channel);
 	if (len > HCI_MAX_FRAME_SIZE) {
-		BT_ERR("Frame larger than the allowed size, flushing frame");
+		PR_BT_ERR("Frame larger than the allowed size, flushing frame");
 		smd_read(hsmd->data_channel, NULL, len);
 		goto out_data;
 	}
@@ -155,14 +156,14 @@ static void hci_smd_recv_data(void)
 
 	skb = bt_skb_alloc(len, GFP_ATOMIC);
 	if (!skb) {
-		BT_ERR("Error in allocating socket buffer");
+		PR_BT_ERR("Error in allocating socket buffer");
 		smd_read(hsmd->data_channel, NULL, len);
 		goto out_data;
 	}
 
 	rc = smd_read(hsmd->data_channel, skb_put(skb, len), len);
 	if (rc < len) {
-		BT_ERR("Error in reading from the channel");
+		PR_BT_ERR("Error in reading from the channel");
 		goto out_data;
 	}
 
@@ -172,7 +173,7 @@ static void hci_smd_recv_data(void)
 
 	rc = hci_recv_frame(skb);
 	if (rc < 0) {
-		BT_ERR("Error in passing the packet to HCI Layer");
+		PR_BT_ERR("Error in passing the packet to HCI Layer");
 		/*
 		 * skb is getting freed in hci_recv_frame, making it
 		 * to null to avoid multiple access
@@ -205,7 +206,7 @@ static void hci_smd_recv_event(void)
 
 	len = smd_read_avail(hsmd->event_channel);
 	if (len > HCI_MAX_FRAME_SIZE) {
-		BT_ERR("Frame larger than the allowed size, flushing frame");
+		PR_BT_ERR("Frame larger than the allowed size, flushing frame");
 		rc = smd_read(hsmd->event_channel, NULL, len);
 		goto out_event;
 	}
@@ -213,14 +214,14 @@ static void hci_smd_recv_event(void)
 	while (len > 0) {
 		skb = bt_skb_alloc(len, GFP_ATOMIC);
 		if (!skb) {
-			BT_ERR("Error in allocating socket buffer");
+			PR_BT_ERR("Error in allocating socket buffer");
 			smd_read(hsmd->event_channel, NULL, len);
 			goto out_event;
 		}
 
 		rc = smd_read(hsmd->event_channel, skb_put(skb, len), len);
 		if (rc < len) {
-			BT_ERR("Error in reading from the event channel");
+			PR_BT_ERR("Error in reading from the event channel");
 			goto out_event;
 		}
 
@@ -231,7 +232,7 @@ static void hci_smd_recv_event(void)
 
 		rc = hci_recv_frame(skb);
 		if (rc < 0) {
-			BT_ERR("Error in passing the packet to HCI Layer");
+			PR_BT_ERR("Error in passing the packet to HCI Layer");
 			/*
 			 * skb is getting freed in hci_recv_frame, making it
 			 *  to null to avoid multiple access
@@ -266,12 +267,12 @@ static int hci_smd_send_frame(struct sk_buff *skb)
 	case HCI_COMMAND_PKT:
 		avail = smd_write_avail(hs.event_channel);
 		if (!avail) {
-			BT_ERR("No space available for smd frame");
+			PR_BT_ERR("No space available for smd frame");
 			ret =  -ENOSPC;
 		}
 		len = smd_write(hs.event_channel, skb->data, skb->len);
 		if (len < skb->len) {
-			BT_ERR("Failed to write Command %d", len);
+			PR_BT_ERR("Failed to write Command %d", len);
 			ret = -ENODEV;
 		}
 		break;
@@ -279,17 +280,17 @@ static int hci_smd_send_frame(struct sk_buff *skb)
 	case HCI_SCODATA_PKT:
 		avail = smd_write_avail(hs.data_channel);
 		if (!avail) {
-			BT_ERR("No space available for smd frame");
+			PR_BT_ERR("No space available for smd frame");
 			ret = -ENOSPC;
 		}
 		len = smd_write(hs.data_channel, skb->data, skb->len);
 		if (len < skb->len) {
-			BT_ERR("Failed to write Data %d", len);
+			PR_BT_ERR("Failed to write Data %d", len);
 			ret = -ENODEV;
 		}
 		break;
 	default:
-		BT_ERR("Uknown packet type");
+		PR_BT_ERR("Uknown packet type");
 		ret = -ENODEV;
 		break;
 	}
@@ -315,10 +316,12 @@ static void hci_smd_notify_event(void *data, unsigned int event)
 	struct hci_dev *hdev = hs.hdev;
 	struct hci_smd_data *hsmd = &hs;
 	struct work_struct *reset_worker;
+	struct work_struct *open_worker;
+
 	int len = 0;
 
 	if (!hdev) {
-		BT_ERR("Frame for unknown HCI device (hdev=NULL)");
+		PR_BT_WARNING("Frame for unknown HCI device (hdev=NULL)");
 		return;
 	}
 
@@ -328,19 +331,26 @@ static void hci_smd_notify_event(void *data, unsigned int event)
 		if (len > 0)
 			tasklet_hi_schedule(&hs.rx_task);
 		else if (len < 0)
-			BT_ERR("Failed to read event from smd %d", len);
+			PR_BT_ERR("Failed to read event from smd %d", len);
 
 		break;
 	case SMD_EVENT_OPEN:
-		BT_INFO("opening HCI-SMD channel :%s", EVENT_CHANNEL);
+		PR_BT_INFO("opening HCI-SMD channel :%s", EVENT_CHANNEL);
 		hci_smd_open(hdev);
+		open_worker = kzalloc(sizeof(*open_worker), GFP_ATOMIC);
+		if (!open_worker) {
+			BT_ERR("Out of memory");
+			break;
+		}
+		INIT_WORK(open_worker, hci_dev_smd_open);
+		schedule_work(open_worker);
 		break;
 	case SMD_EVENT_CLOSE:
-		BT_INFO("Closing HCI-SMD channel :%s", EVENT_CHANNEL);
+		PR_BT_INFO("Closing HCI-SMD channel :%s", EVENT_CHANNEL);
 		hci_smd_close(hdev);
 		reset_worker = kzalloc(sizeof(*reset_worker), GFP_ATOMIC);
 		if (!reset_worker) {
-			BT_ERR("Out of memory");
+			PR_BT_ERR("Out of memory");
 			break;
 		}
 		INIT_WORK(reset_worker, hci_dev_restart);
@@ -358,7 +368,7 @@ static void hci_smd_notify_data(void *data, unsigned int event)
 	int len = 0;
 
 	if (!hdev) {
-		BT_ERR("Frame for unknown HCI device (hdev=NULL)");
+		PR_BT_WARNING("Frame for unknown HCI device (hdev=NULL)");
 		return;
 	}
 
@@ -368,14 +378,14 @@ static void hci_smd_notify_data(void *data, unsigned int event)
 		if (len > 0)
 			tasklet_hi_schedule(&hs.rx_task);
 		else if (len < 0)
-			BT_ERR("Failed to read data from smd %d", len);
+			PR_BT_ERR("Failed to read data from smd %d", len);
 		break;
 	case SMD_EVENT_OPEN:
-		BT_INFO("opening HCI-SMD channel :%s", DATA_CHANNEL);
+		PR_BT_INFO("opening HCI-SMD channel :%s", DATA_CHANNEL);
 		hci_smd_open(hdev);
 		break;
 	case SMD_EVENT_CLOSE:
-		BT_INFO("Closing HCI-SMD channel :%s", DATA_CHANNEL);
+		PR_BT_INFO("Closing HCI-SMD channel :%s", DATA_CHANNEL);
 		hci_smd_close(hdev);
 		break;
 	default:
@@ -384,15 +394,30 @@ static void hci_smd_notify_data(void *data, unsigned int event)
 
 }
 
-static int hci_smd_register_dev(struct hci_smd_data *hsmd)
+static int hci_smd_hci_register_dev(struct hci_smd_data *hsmd)
 {
-	static struct hci_dev *hdev;
+	struct hci_dev *hdev;
+
+	hdev = hsmd->hdev;
+
+	if (hci_register_dev(hdev) < 0) {
+		BT_ERR("Can't register HCI device");
+		hci_free_dev(hdev);
+		hsmd->hdev = NULL;
+		return -ENODEV;
+	}
+	return 0;
+}
+
+static int hci_smd_register_smd(struct hci_smd_data *hsmd)
+{
+	struct hci_dev *hdev;
 	int rc;
 
 	/* Initialize and register HCI device */
 	hdev = hci_alloc_dev();
 	if (!hdev) {
-		BT_ERR("Can't allocate HCI device");
+		PR_BT_ERR("Can't allocate HCI device");
 		return -ENOMEM;
 	}
 
@@ -419,29 +444,24 @@ static int hci_smd_register_dev(struct hci_smd_data *hsmd)
 	rc = smd_named_open_on_edge(EVENT_CHANNEL, SMD_APPS_WCNSS,
 			&hsmd->event_channel, hdev, hci_smd_notify_event);
 	if (rc < 0) {
-		BT_ERR("Cannot open the command channel");
+		PR_BT_ERR("Cannot open the command channel");
 		hci_free_dev(hdev);
-		hdev = NULL;
+		hsmd->hdev = NULL;
 		return -ENODEV;
 	}
 
 	rc = smd_named_open_on_edge(DATA_CHANNEL, SMD_APPS_WCNSS,
 			&hsmd->data_channel, hdev, hci_smd_notify_data);
 	if (rc < 0) {
-		BT_ERR("Failed to open the Data channel");
+		PR_BT_ERR("Failed to open the Data channel");
 		hci_free_dev(hdev);
-		hdev = NULL;
+		hsmd->hdev = NULL;
 		return -ENODEV;
 	}
 
 	/* Disable the read interrupts on the channel */
 	smd_disable_read_intr(hsmd->event_channel);
 	smd_disable_read_intr(hsmd->data_channel);
-	if (hci_register_dev(hdev) < 0) {
-		BT_ERR("Can't register HCI device");
-		hci_free_dev(hdev);
-		return -ENODEV;
-	}
 	return 0;
 }
 
@@ -451,7 +471,7 @@ static void hci_smd_deregister_dev(struct hci_smd_data *hsmd)
 
 	if (hsmd->hdev) {
 		if (hci_unregister_dev(hsmd->hdev) < 0)
-			BT_ERR("Can't unregister HCI device %s",
+			PR_BT_ERR("Can't unregister HCI device %s",
 				hsmd->hdev->name);
 
 		hci_free_dev(hsmd->hdev);
@@ -478,7 +498,15 @@ static void hci_dev_restart(struct work_struct *worker)
 {
 	mutex_lock(&hci_smd_enable);
 	hci_smd_deregister_dev(&hs);
-	hci_smd_register_dev(&hs);
+	hci_smd_register_smd(&hs);
+	mutex_unlock(&hci_smd_enable);
+	kfree(worker);
+}
+
+static void hci_dev_smd_open(struct work_struct *worker)
+{
+	mutex_lock(&hci_smd_enable);
+	hci_smd_hci_register_dev(&hs);
 	mutex_unlock(&hci_smd_enable);
 	kfree(worker);
 }
@@ -502,7 +530,7 @@ static int hcismd_set_enable(const char *val, struct kernel_param *kp)
 	switch (enable) {
 
 	case 1:
-		if (0 == hci_smd_register_dev(&hs))
+		if (0 == hci_smd_register_smd(&hs))
 			hcismd_set = 1;
 	break;
 	case 0:
@@ -528,7 +556,7 @@ static int hcismd_set_enable(const char *val, struct kernel_param *kp)
 	switch (hcismd_set) {
 
 	case 1:
-		hci_smd_register_dev(&hs);
+		hci_smd_register_smd(&hs);
 	break;
 	case 0:
 		hci_smd_deregister_dev(&hs);

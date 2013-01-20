@@ -340,6 +340,7 @@ static struct msm_camera_i2c_reg_conf s5k3h2yx_snap_settings[] = {
 	{0x0383, 0x01},/*X_ODD_INC*/
 	{0x0385, 0x01},/*Y_EVEN_INC*/
 	{0x0387, 0x01},/*Y_ODD_INC*/
+	{0x0105, 0x01 }, /* skip corrupted frame - for preview flash when doing hjr af */
 	{0x0401, 0x00},/*DERATING_EN*/
 	{0x0405, 0x10},
 	{0x0700, 0x05},/*FIFO_WATER_MARK_PIXELS*/
@@ -382,6 +383,7 @@ static struct msm_camera_i2c_reg_conf s5k3h2yx_snap_wide_settings[] = {
 	{0x0385, 0x01},	//y_even_inc = 1
 	{0x0387, 0x01},	//y_odd_inc = 1
 
+	{0x0105, 0x01 }, /* skip corrupted frame - for preview flash when doing hjr af */
 	{0x0401, 0x00},	//Derating_en  = 0 (disable)
 	{0x0405, 0x10},
 	{0x0700, 0x05},	//fifo_water_mark_pixels = 1328
@@ -727,9 +729,9 @@ static struct msm_sensor_output_info_t s5k3h2yx_dimensions[] = {
 		.op_pixel_clk = 182400000,
 		.binning_factor = 1,
 		.x_addr_start = 0,
-		.y_addr_start = 0,
+		.y_addr_start = 0x0130,
 		.x_addr_end = 0xCCF,
-		.y_addr_end = 0x99F,
+		.y_addr_end = 0x86F,
 		.x_even_inc = 1,
 		.x_odd_inc = 1,
 		.y_even_inc = 1,
@@ -793,7 +795,9 @@ static uint16_t vcm_clib_min,vcm_clib_med,vcm_clib_max;
 
 static int s5k3h2yx_read_vcm_clib(struct sensor_cfg_data *cdata, struct msm_sensor_ctrl_t *s_ctrl)
 {
-	uint8_t rc=0;
+	/* HTC_START (klockwork issue)*/
+	int32_t rc=0;
+	/* HTC_END */
 	unsigned short info_value = 0;
 
 	struct msm_camera_i2c_client *s5k3h2yx_msm_camera_i2c_client = s_ctrl->sensor_i2c_client;
@@ -1474,6 +1478,30 @@ get_done:
 
 }
 /* HTC_END*/
+#define S5K3H2_REG_DIGITAL_GAIN_GREEN_R 0x020E
+#define S5K3H2_REG_DIGITAL_GAIN_RED 0x0210
+#define S5K3H2_REG_DIGITAL_GAIN_BLUE 0x0212
+#define S5K3H2_REG_DIGITAL_GAIN_GREEN_B 0x0214
+
+
+int32_t s5k3h2_set_dig_gain(struct msm_sensor_ctrl_t *s_ctrl, uint16_t dig_gain){
+
+	msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
+		S5K3H2_REG_DIGITAL_GAIN_GREEN_R, dig_gain,
+		MSM_CAMERA_I2C_BYTE_DATA);
+	msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
+		S5K3H2_REG_DIGITAL_GAIN_RED, dig_gain,
+		MSM_CAMERA_I2C_BYTE_DATA);
+	msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
+		S5K3H2_REG_DIGITAL_GAIN_BLUE, dig_gain,
+		MSM_CAMERA_I2C_BYTE_DATA);
+	msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
+		S5K3H2_REG_DIGITAL_GAIN_GREEN_B, dig_gain,
+		MSM_CAMERA_I2C_BYTE_DATA);
+	return 0;
+}
+
+
 static struct msm_sensor_fn_t s5k3h2yx_func_tbl = {
 	.sensor_start_stream = msm_sensor_start_stream,
 	.sensor_stop_stream = msm_sensor_stop_stream,
@@ -1496,6 +1524,7 @@ static struct msm_sensor_fn_t s5k3h2yx_func_tbl = {
 	/* HTC_START Awii 20120306 */
 	.sensor_i2c_read_vcm_clib = s5k3h2yx_read_vcm_clib,
 	/* HTC_END*/
+	.sensor_set_dig_gain = s5k3h2_set_dig_gain,
 };
 
 static struct msm_sensor_reg_t s5k3h2yx_regs = {

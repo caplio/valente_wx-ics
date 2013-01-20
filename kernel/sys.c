@@ -335,9 +335,9 @@ void kernel_restart(char *cmd)
 {
 	kernel_restart_prepare(cmd);
 	if (!cmd)
-		printk(KERN_EMERG "Restarting system.\n");
+		printk(KERN_EMERG "[K] Restarting system.\n");
 	else
-		printk(KERN_EMERG "Restarting system with command '%s'.\n", cmd);
+		printk(KERN_EMERG "[K] Restarting system with command '%s'.\n", cmd);
 	kmsg_dump(KMSG_DUMP_RESTART);
 	machine_restart(cmd);
 }
@@ -360,7 +360,7 @@ void kernel_halt(void)
 {
 	kernel_shutdown_prepare(SYSTEM_HALT);
 	syscore_shutdown();
-	printk(KERN_EMERG "System halted.\n");
+	printk(KERN_EMERG "[K] System halted.\n");
 	kmsg_dump(KMSG_DUMP_HALT);
 	machine_halt();
 }
@@ -379,7 +379,7 @@ void kernel_power_off(void)
 		pm_power_off_prepare();
 	disable_nonboot_cpus();
 	syscore_shutdown();
-	printk(KERN_EMERG "Power down.\n");
+	printk(KERN_EMERG "[K] Power down.\n");
 	kmsg_dump(KMSG_DUMP_POWEROFF);
 	machine_power_off();
 }
@@ -400,9 +400,24 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 {
 	char buffer[256];
 	int ret = 0;
-	/* We only trust the superuser with rebooting the system. */
-	if (!capable(CAP_SYS_BOOT))
-		return -EPERM;
+	int res = 0;
+	unsigned int len;
+	char path[64];
+	struct task_struct *task = current;
+	struct mm_struct *mm = get_task_mm(task);
+
+	len = mm->arg_end - mm->arg_start;
+	if (len > PAGE_SIZE)
+		len = PAGE_SIZE;
+
+	res = access_process_vm(task, mm->arg_start, path, len, 0);
+	mmput(mm);
+
+	if (!(!strcmp("/system/bin/reboot", path) && cmd == LINUX_REBOOT_CMD_RESTART2)) {
+		/* We only trust the superuser with rebooting the system. */
+		if (!capable(CAP_SYS_BOOT))
+			return -EPERM;
+	}
 
 	/* For safety, we require "magic" arguments. */
 	if (magic1 != LINUX_REBOOT_MAGIC1 ||

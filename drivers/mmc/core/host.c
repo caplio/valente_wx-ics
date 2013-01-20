@@ -414,10 +414,42 @@ static DEVICE_ATTR(perf, S_IRUGO | S_IWUSR,
 		show_perf, set_perf);
 #endif
 
+static ssize_t
+show_burst(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct mmc_host *host = dev_get_drvdata(dev);
+	if (!host)
+		return 0;
+	return sprintf(buf, "%d", host->burst_mode);
+}
+
+static ssize_t
+set_burst(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct mmc_host *host = dev_get_drvdata(dev);
+	char *envp[3] = {"SWITCH_NAME=camera_burst",0, 0};
+	if (!host || !host->card || !host->card->mmcblk_dev)
+		return count;
+	sscanf(buf, "%d", &host->burst_mode);
+	pr_info("%s: %d\n", __func__, host->burst_mode);
+	if (!host->burst_mode) {
+		envp[1] = "SWITCH_STATE=0";
+	} else {
+		envp[1] = "SWITCH_STATE=1";
+	}
+
+	kobject_uevent_env(&host->card->mmcblk_dev->kobj, KOBJ_CHANGE, envp);
+	return count;
+}
+static DEVICE_ATTR(burst, S_IRUGO | S_IWUSR | S_IWGRP,
+		show_burst, set_burst);
+
 static struct attribute *dev_attrs[] = {
 #ifdef CONFIG_MMC_PERF_PROFILING
 	&dev_attr_perf.attr,
 #endif
+	&dev_attr_burst.attr,
 	NULL,
 };
 static struct attribute_group dev_attr_grp = {

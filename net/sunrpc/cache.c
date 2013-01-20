@@ -1584,6 +1584,12 @@ static int create_cache_proc_entries(struct cache_detail *cd, struct net *net)
 	struct proc_dir_entry *p;
 	struct sunrpc_net *sn;
 
+    if ((cd == NULL) || (IS_ERR(cd)))
+        return -ENOMEM;
+
+    if ((net == NULL) || (IS_ERR(net)))
+        return -ENOMEM;
+
 	sn = net_generic(net, sunrpc_net_id);
 	cd->u.procfs.proc_ent = proc_mkdir(cd->name, sn->proc_net_rpc);
 	if (cd->u.procfs.proc_ent == NULL)
@@ -1595,7 +1601,7 @@ static int create_cache_proc_entries(struct cache_detail *cd, struct net *net)
 			     cd->u.procfs.proc_ent,
 			     &cache_flush_operations_procfs, cd);
 	cd->u.procfs.flush_ent = p;
-	if (p == NULL)
+	if ((p == NULL) || (IS_ERR(p)))
 		goto out_nomem;
 
 	if (cd->cache_upcall || cd->cache_parse) {
@@ -1603,7 +1609,7 @@ static int create_cache_proc_entries(struct cache_detail *cd, struct net *net)
 				     cd->u.procfs.proc_ent,
 				     &cache_file_operations_procfs, cd);
 		cd->u.procfs.channel_ent = p;
-		if (p == NULL)
+		if ((p == NULL) || (IS_ERR(p)))
 			goto out_nomem;
 	}
 	if (cd->cache_show) {
@@ -1611,7 +1617,7 @@ static int create_cache_proc_entries(struct cache_detail *cd, struct net *net)
 				cd->u.procfs.proc_ent,
 				&content_file_operations_procfs, cd);
 		cd->u.procfs.content_ent = p;
-		if (p == NULL)
+		if ((p == NULL) || (IS_ERR(p)))
 			goto out_nomem;
 	}
 	return 0;

@@ -19,6 +19,8 @@
 #include <linux/security.h>
 #include "fat.h"
 
+#include <trace/events/mmcio.h>
+
 static int fat_ioctl_get_attributes(struct inode *inode, u32 __user *user_attr)
 {
 	u32 attr;
@@ -160,13 +162,24 @@ int fat_file_fsync(struct file *filp, int datasync)
 	return res ? res : err;
 }
 
+static ssize_t
+fat_file_write(struct kiocb *iocb, const struct iovec *iov,
+		unsigned long nr_segs, loff_t pos)
+{
+	ssize_t ret;
+	trace_fat_file_write(iocb->ki_filp->f_path.dentry,
+		iocb->ki_left);
+	ret = generic_file_aio_write(iocb, iov, nr_segs, pos);
+	trace_file_write_done(iocb->ki_filp);
+	return ret;
+}
 
 const struct file_operations fat_file_operations = {
 	.llseek		= generic_file_llseek,
 	.read		= do_sync_read,
 	.write		= do_sync_write,
 	.aio_read	= generic_file_aio_read,
-	.aio_write	= generic_file_aio_write,
+	.aio_write	= fat_file_write,
 	.mmap		= generic_file_mmap,
 	.release	= fat_file_release,
 	.unlocked_ioctl	= fat_generic_ioctl,

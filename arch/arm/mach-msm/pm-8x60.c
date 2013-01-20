@@ -60,31 +60,33 @@
 #include "qdss.h"
 #include "pm-boot.h"
 #include <mach/msm_xo.h>
+#include <linux/wakelock.h>
+#include <linux/cpufreq.h>
 
 #ifdef pr_err
 #undef pr_err
 #endif
 #define pr_err(fmt, args...) \
-	printk(KERN_ERR "[PM] " pr_fmt(fmt), ## args)
+	printk(KERN_ERR "[K][PM] " pr_fmt(fmt), ## args)
 
 #ifdef pr_warning
 #undef pr_warning
 #endif
 #define pr_warning(fmt, args...) \
-	printk(KERN_WARNING "[PM] " pr_fmt(fmt), ## args)
+	printk(KERN_WARNING "[K][PM] " pr_fmt(fmt), ## args)
 
 #ifdef pr_info
 #undef pr_info
 #endif
 #define pr_info(fmt, args...) \
-	printk(KERN_INFO "[PM] " pr_fmt(fmt), ## args)
+	printk(KERN_INFO "[K][PM] " pr_fmt(fmt), ## args)
 
 #if defined(DEBUG)
 #ifdef pr_debug
 #undef pr_debug
 #endif
 #define pr_debug(fmt, args...) \
-	printk(KERN_DEBUG "[PM] " pr_fmt(fmt), ## args)
+	printk(KERN_DEBUG "[K][PM] " pr_fmt(fmt), ## args)
 #endif
 
 /******************************************************************************
@@ -106,6 +108,8 @@ enum {
 	MSM_PM_DEBUG_IDLE_CLOCK = BIT(11),
 	MSM_PM_DEBUG_RPM_STAT = BIT(12),
 	MSM_PM_DEBUG_VREG = BIT(13),
+	MSM_PM_DEBUG_CPUFREQ_TOTAL = BIT(14),
+	MSM_PM_DEBUG_CPUFREQ_DIFF = BIT(15),
 };
 
 static int msm_pm_debug_mask = MSM_PM_DEBUG_SUSPEND | MSM_PM_DEBUG_SUSPEND_LIMITS
@@ -123,6 +127,7 @@ extern void gpio_set_diag_gpio_table(unsigned long *dwMFG_gpio_table);
 
 static struct msm_pm_platform_data *msm_pm_modes;
 static int rpm_cpu0_wakeup_irq;
+static struct wake_lock idlelock;
 
 /*
 PHY define in msm_iomap-8960.h, VIRT define in msm_iomap.h
@@ -720,18 +725,18 @@ void msm_pm_set_max_sleep_time(int64_t max_sleep_time_ns)
 }
 EXPORT_SYMBOL(msm_pm_set_max_sleep_time);
 
-static unsigned int *network_info_addr;
+static unsigned int *network_info_base;
 
 void msm_pm_network_info_init(unsigned int *addr)
 {
-	network_info_addr = addr;
+	network_info_base = addr;
 }
 EXPORT_SYMBOL(msm_pm_network_info_init);
 
 void network_info_dump(void)
 {
-	if (network_info_addr)
-		printk("network info: %d\n", *network_info_addr);
+	if (network_info_base)
+		printk("[K] network info: %d, %d\n", *network_info_base, *(network_info_base + 35));
 }
 
 /******************************************************************************
@@ -800,8 +805,12 @@ static bool msm_pm_spm_power_collapse(
 #ifdef CONFIG_MSM_WATCHDOG
 		msm_watchdog_suspend();
 #endif
+		if (MSM_PM_DEBUG_CPUFREQ_TOTAL & msm_pm_debug_mask)
+			print_cpu_freq_stats(0);
+		if (MSM_PM_DEBUG_CPUFREQ_DIFF & msm_pm_debug_mask)
+			print_cpu_freq_stats(1);
 
-		printk(KERN_INFO "[R] suspend end\n");
+		printk(KERN_INFO "[K][R] suspend end\n");
 	}
 	collapsed = msm_pm_l2x0_power_collapse();
 
@@ -811,7 +820,7 @@ static bool msm_pm_spm_power_collapse(
 	msm_pm_boot_config_after_pc(cpu);
 
 	if (!from_idle && smp_processor_id() == 0) {
-		printk(KERN_INFO "[R] resume start\n");
+		printk(KERN_INFO "[K][R] resume start\n");
 
 #ifdef CONFIG_MSM_WATCHDOG
 		msm_watchdog_resume();
@@ -821,6 +830,7 @@ static bool msm_pm_spm_power_collapse(
 
 		if (suspend_console_deferred)
 			resume_console();
+
 	}
 
 	set_cpu_foot_print(cpu, 0xb);
@@ -1308,7 +1318,7 @@ static int msm_pm_enter(suspend_state_t state)
 		} else {
 			gpio_sleep_status_info = kmalloc(25000, GFP_ATOMIC);
 			if (!gpio_sleep_status_info) {
-				pr_err("[PM] kmalloc memory failed in %s\n",
+				pr_err("kmalloc memory failed in %s\n",
 					__func__);
 
 			}
@@ -1330,7 +1340,7 @@ static int msm_pm_enter(suspend_state_t state)
 		} else {
 			vreg_sleep_status_info = kmalloc(25000, GFP_ATOMIC);
 			if (!vreg_sleep_status_info) {
-				pr_err("[PM] kmalloc memory failed in %s\n",
+				pr_err("kmalloc memory failed in %s\n",
 					__func__);
 
 			}
@@ -1441,9 +1451,14 @@ static int msm_pm_enter(suspend_state_t state)
 		msm_watchdog_suspend();
 #endif
 
-		printk(KERN_INFO "[R] suspend end\n");
+		if (MSM_PM_DEBUG_CPUFREQ_TOTAL & msm_pm_debug_mask)
+			print_cpu_freq_stats(0);
+		if (MSM_PM_DEBUG_CPUFREQ_DIFF & msm_pm_debug_mask)
+			print_cpu_freq_stats(1);
+
+		printk(KERN_INFO "[K][R] suspend end\n");
 		msm_pm_swfi();
-		printk(KERN_INFO "[R] resume start\n");
+		printk(KERN_INFO "[K][R] resume start\n");
 
 #ifdef CONFIG_MSM_WATCHDOG
 		msm_watchdog_resume();
@@ -1643,6 +1658,12 @@ static int __init msm_pm_init(void)
 	store_pm_boot_vector_addr(addr);
 
 	keep_dig_voltage_low_in_idle(true);
+
+	if(board_mfg_mode() == 6 || board_mfg_mode() == 8) {
+		wake_lock_init(&idlelock, WAKE_LOCK_IDLE, "mfg_idle_wakelock");
+		wake_lock(&idlelock);
+		pr_info("MFG idle wakelock\n");
+	}
 
 	return 0;
 }

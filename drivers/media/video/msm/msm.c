@@ -41,6 +41,7 @@ static struct msm_cam_server_dev g_server_dev;
 static struct class *msm_class;
 static dev_t msm_devno;
 static int vnode_count;
+extern void try_vfe32_stop(void);  //HTC 20120724-raymond to prevent IOMMU page fault after media server crash
 
 module_param(msm_camera_v4l2_nr, uint, 0644);
 MODULE_PARM_DESC(msm_camera_v4l2_nr, "videoX start number, -1 is autodetect");
@@ -214,6 +215,8 @@ static int msm_send_open_server(int vnode_id)
 	int rc = 0;
 	struct msm_ctrl_cmd ctrlcmd;
 	D("%s\n", __func__);
+
+	memset(&ctrlcmd, 0, sizeof(ctrlcmd));
 	ctrlcmd.type	   = MSM_V4L2_OPEN;
 	ctrlcmd.timeout_ms = 10000;
 	ctrlcmd.length	 = strnlen(g_server_dev.config_info.config_dev_name[0],
@@ -233,6 +236,8 @@ static int msm_send_close_server(int vnode_id)
 	int rc = 0;
 	struct msm_ctrl_cmd ctrlcmd;
 	D("%s\n", __func__);
+
+	memset(&ctrlcmd, 0, sizeof(ctrlcmd));
 	ctrlcmd.type	   = MSM_V4L2_CLOSE;
 	ctrlcmd.timeout_ms = 10000;
 	ctrlcmd.length	 = strnlen(g_server_dev.config_info.config_dev_name[0],
@@ -278,6 +283,7 @@ static int msm_server_set_fmt(struct msm_cam_v4l2_device *pcam, int idx,
 		return -EINVAL;
 	}
 
+	memset(&ctrlcmd, 0, sizeof(ctrlcmd));
 	ctrlcmd.type       = MSM_V4L2_VID_CAP_TYPE;
 	ctrlcmd.length     = sizeof(struct img_plane_info);
 	ctrlcmd.value      = (void *)&plane_info;
@@ -342,6 +348,7 @@ static int msm_server_set_fmt_mplane(struct msm_cam_v4l2_device *pcam, int idx,
 		return -EINVAL;
 	}
 
+	memset(&ctrlcmd, 0, sizeof(ctrlcmd));
 	ctrlcmd.type       = MSM_V4L2_VID_CAP_TYPE;
 	ctrlcmd.length     = sizeof(struct img_plane_info);
 	ctrlcmd.value      = (void *)&plane_info;
@@ -369,6 +376,8 @@ static int msm_server_streamon(struct msm_cam_v4l2_device *pcam, int idx)
 	int rc = 0;
 	struct msm_ctrl_cmd ctrlcmd;
 	D("%s\n", __func__);
+
+	memset(&ctrlcmd, 0, sizeof(ctrlcmd));
 	ctrlcmd.type	   = MSM_V4L2_STREAM_ON;
 	ctrlcmd.timeout_ms = 10000;
 	ctrlcmd.length	 = 0;
@@ -390,6 +399,7 @@ static int msm_server_streamoff(struct msm_cam_v4l2_device *pcam, int idx)
 	struct msm_ctrl_cmd ctrlcmd;
 
 	D("%s, pcam = 0x%x\n", __func__, (u32)pcam);
+	memset(&ctrlcmd, 0, sizeof(ctrlcmd));
 	ctrlcmd.type        = MSM_V4L2_STREAM_OFF;
 	ctrlcmd.timeout_ms  = 10000;
 	ctrlcmd.length      = 0;
@@ -449,6 +459,7 @@ static int msm_server_proc_ctrl_cmd(struct msm_cam_v4l2_device *pcam,
 	} else
 	tmp_cmd->value = NULL;
 
+	memset(&ctrlcmd, 0, sizeof(ctrlcmd));
 	ctrlcmd.type = MSM_V4L2_SET_CTRL_CMD;
 	ctrlcmd.length = cmd_len + value_len;
 	ctrlcmd.value = (void *)ctrl_data;
@@ -498,6 +509,7 @@ static int msm_server_s_ctrl(struct msm_cam_v4l2_device *pcam,
 
 	memset(ctrl_data, 0, sizeof(ctrl_data));
 
+	memset(&ctrlcmd, 0, sizeof(ctrlcmd));
 	ctrlcmd.type = MSM_V4L2_SET_CTRL;
 	ctrlcmd.length = sizeof(struct v4l2_control);
 	ctrlcmd.value = (void *)ctrl_data;
@@ -525,6 +537,7 @@ static int msm_server_g_ctrl(struct msm_cam_v4l2_device *pcam,
 
 	memset(ctrl_data, 0, sizeof(ctrl_data));
 
+	memset(&ctrlcmd, 0, sizeof(ctrlcmd));
 	ctrlcmd.type = MSM_V4L2_GET_CTRL;
 	ctrlcmd.length = sizeof(struct v4l2_control);
 	ctrlcmd.value = (void *)ctrl_data;
@@ -550,6 +563,7 @@ static int msm_server_q_ctrl(struct msm_cam_v4l2_device *pcam,
 	WARN_ON(queryctrl == NULL);
 	memset(ctrl_data, 0, sizeof(ctrl_data));
 
+	memset(&ctrlcmd, 0, sizeof(ctrlcmd));
 	ctrlcmd.type = MSM_V4L2_QUERY_CTRL;
 	ctrlcmd.length = sizeof(struct v4l2_queryctrl);
 	ctrlcmd.value = (void *)ctrl_data;
@@ -660,6 +674,7 @@ static int msm_camera_get_crop(struct msm_cam_v4l2_device *pcam,
 
 	BUG_ON(crop == NULL);
 
+	memset(&ctrlcmd, 0, sizeof(ctrlcmd));
 	ctrlcmd.type = MSM_V4L2_GET_CROP;
 	ctrlcmd.length = sizeof(struct v4l2_crop);
 	ctrlcmd.value = (void *)crop;
@@ -1615,7 +1630,6 @@ static int msm_close(struct file *f)
 		return -EINVAL;
 	}
 
-
 	mutex_lock(&pcam->vid_lock);
 	pcam_inst->streamon = 0;
 	pcam->use_count--;
@@ -1627,6 +1641,7 @@ static int msm_close(struct file *f)
 		__func__, pcam_inst);
 
 	if (pcam_inst->buf_offset) {
+		try_vfe32_stop(); //HTC 20120724-raymond to prevent IOMMU page fault after media server crash
 		for (i = 0 ; i < pcam_inst->buf_count ; i++)
 			kfree(pcam_inst->buf_offset[i]);
 		kfree(pcam_inst->buf_offset);
@@ -2110,12 +2125,6 @@ static long msm_ioctl_config(struct file *fp, unsigned int cmd,
 		rc = msm_v4l2_evt_notify(config_cam->p_mctl, cmd, arg);
 		break;
 
-	case MSM_CAM_IOCTL_SET_MEM_MAP_INFO:
-		if (copy_from_user(&config_cam->mem_map, (void __user *)arg,
-				sizeof(struct msm_mem_map_info)))
-			rc = -EINVAL;
-		break;
-
 	default:{
 		/* For the rest of config command, forward to media controller*/
 		struct msm_cam_media_controller *p_mctl = config_cam->p_mctl;
@@ -2129,40 +2138,6 @@ static long msm_ioctl_config(struct file *fp, unsigned int cmd,
 		break;
 	} /* end of default*/
 	} /* end of switch*/
-	return rc;
-}
-
-static int msm_mmap_config(struct file *fp, struct vm_area_struct *vma)
-{
-	struct msm_cam_config_dev *config_cam = fp->private_data;
-	int rc = 0;
-	int phyaddr;
-	int retval;
-	unsigned long size;
-
-	D("%s: phy_addr=0x%x", __func__, config_cam->mem_map.cookie);
-	phyaddr = (int)config_cam->mem_map.cookie;
-	if (!phyaddr) {
-		pr_err("%s: no physical memory to map", __func__);
-		return -EFAULT;
-	}
-	memset(&config_cam->mem_map, 0,
-		sizeof(struct msm_mem_map_info));
-	size = vma->vm_end - vma->vm_start;
-	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
-	retval = remap_pfn_range(vma, vma->vm_start,
-					phyaddr >> PAGE_SHIFT,
-					size, vma->vm_page_prot);
-	if (retval) {
-		pr_err("%s: remap failed, rc = %d",
-					__func__, retval);
-		rc = -ENOMEM;
-		goto end;
-	}
-	D("%s: phy_addr=0x%x: %08lx-%08lx, pgoff %08lx\n",
-			__func__, (uint32_t)phyaddr,
-			vma->vm_start, vma->vm_end, vma->vm_pgoff);
-end:
 	return rc;
 }
 
@@ -2228,7 +2203,6 @@ static const struct file_operations msm_fops_config = {
 	.open  = msm_open_config,
 	.poll  = msm_poll_config,
 	.unlocked_ioctl = msm_ioctl_config,
-	.mmap	= msm_mmap_config,
 	.release = msm_close_config,
 };
 
@@ -2295,6 +2269,8 @@ static uint32_t led_wimax_status_value;
 static uint32_t led_hotspot_status_value;
 static uint16_t led_low_temp_limit;
 static uint16_t led_low_cap_limit;
+static uint16_t led_low_cap_limit_dual;
+
 
 static ssize_t led_ril_status_get(struct device *dev,
 				struct device_attribute *attr, char *buf)
@@ -2374,6 +2350,14 @@ static ssize_t low_cap_limit_get(struct device *dev,
 	return length;
 }
 
+static ssize_t low_cap_limit_dual_get(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	ssize_t length;
+	length = sprintf(buf, "%d\n", led_low_cap_limit_dual);
+	return length;
+}
+
 static DEVICE_ATTR(led_ril_status, 0644,
 	led_ril_status_get,
 	led_ril_status_set);
@@ -2393,6 +2377,11 @@ static DEVICE_ATTR(low_temp_limit, 0444,
 static DEVICE_ATTR(low_cap_limit, 0444,
 	low_cap_limit_get,
 	NULL);
+
+static DEVICE_ATTR(low_cap_limit_dual, 0444,
+	low_cap_limit_dual_get,
+	NULL);
+
 
 static int msm_sensor_attr_node(struct msm_sync *sync)
 {
@@ -2456,6 +2445,13 @@ static int msm_sensor_attr_node(struct msm_sync *sync)
 		ret = -EFAULT;
 		goto error;
 	}
+	ret = sysfs_create_file(led_status_obj,
+		&dev_attr_low_cap_limit_dual.attr);
+	if (ret) {
+		pr_info("[CAM]msm_camera: sysfs_create_file dev_attr_low_cap_limit_dual failed\n");
+		ret = -EFAULT;
+		goto error;
+	}
 
 	if ((sync->sdata->flash_data->flash_type != MSM_CAMERA_FLASH_NONE) &&
 		sync->sdata->flash_cfg && sync->sdata->flash_cfg->flash_info) {
@@ -2466,6 +2462,7 @@ static int msm_sensor_attr_node(struct msm_sync *sync)
 
 	led_low_temp_limit = sync->sdata->flash_cfg->low_temp_limit;
 	led_low_cap_limit = sync->sdata->flash_cfg->low_cap_limit;
+	led_low_cap_limit_dual = sync->sdata->flash_cfg->low_cap_limit_dual;
 
 	return ret;
 
@@ -2867,7 +2864,7 @@ int msm_sensor_register(struct platform_device *pdev,
 
 	rc = sensor_probe(sdata, sdev, sctrl);
 	if (rc < 0) {
-		pr_err("%s: failed to detect %s\n",
+		pr_warning("%s: failed to detect %s\n",
 			__func__,
 			sdata->sensor_name);
 
@@ -3019,8 +3016,10 @@ static struct switch_dev htccallback_switch = {
 };
 
 static struct kobject *htccallback_obj;
+static struct kobject *camera_attrs_obj;
 
 static uint32_t htccallback_value;
+static uint32_t videochat_value;
 
 static ssize_t htccallback_set(struct device *dev,
                 struct device_attribute *attr, const char *buf, size_t count)
@@ -3035,9 +3034,34 @@ static ssize_t htccallback_set(struct device *dev,
        return count;
 }
 
+static ssize_t videochat_get(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	ssize_t length;
+	length = sprintf(buf, "%d\n", videochat_value);
+	return length;
+}
+
+static ssize_t videochat_set(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	uint32_t tmp = 0;
+
+	if (buf[1] == '\n')
+		tmp = buf[0] - 0x30;
+
+	videochat_value = tmp;
+	pr_info("[CAM]videochat_value = %d\n", videochat_value);
+	return count;
+}
+
 static DEVICE_ATTR(htccallback, 0660,
     NULL,
     htccallback_set);
+
+static DEVICE_ATTR(videochat, 0660,
+    videochat_get,
+    videochat_set);
 
 static int msm_camera_sysfs_init(void)
 {
@@ -3061,9 +3085,29 @@ static int msm_camera_sysfs_init(void)
 	if (switch_dev_register(&htccallback_switch) < 0) {
 		pr_info("[CAM]htccallback : switch_dev_register error\n");
 	}
+
+
+	pr_info("[CAM] camera_attrs:kobject creat and add\n");
+
+       camera_attrs_obj = kobject_create_and_add("camera_attrs", NULL);
+       if (camera_attrs_obj == NULL) {
+              pr_info("[CAM]camera_attrs: subsystem_register_camera_attrs failed\n");
+              ret = -ENOMEM;
+              goto error;
+       }
+
+       ret = sysfs_create_file(camera_attrs_obj,
+                  &dev_attr_videochat.attr);
+	if (ret) {
+		pr_info("[CAM]dev_attr_videochat: sysfs_create_dev attr_videochat file failed\n");
+		ret = -EFAULT;
+		goto error;
+	}
+
 	return ret;
 error:
 	kobject_del(htccallback_obj);
+	kobject_del(camera_attrs_obj);
 	return ret;
 }
 //HTC_END

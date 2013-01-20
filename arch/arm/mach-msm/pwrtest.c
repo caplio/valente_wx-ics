@@ -17,9 +17,6 @@
 #include <linux/module.h>
 #include "devices.h"
 #include "proc_comm.h"
-#ifdef CONFIG_MACH_VALENTE_WX
-#include "board-valente_wx.h"
-#endif
 
 /* gpio info for PCOM_RPC_GPIO_TLMM_CONFIG_EX */
 #define GPIO_ENABLE	0
@@ -64,19 +61,6 @@ typedef struct _tagSUSPEND_PIN_CONFIG {
     unsigned char arGpio[200]; /* the maximum should be 1024 bytes */
 } SUSPEND_PIN_CONFIG, *PSUSPEND_PIN_CONFIG;
 
-#ifdef CONFIG_MACH_VALENTE_WX
-static uint32_t msm_gpio_wa[] = {
-        GPIO_CFG(VALENTE_WX_AUD_WCD_SB_DATA, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, 0),
-        GPIO_CFG(VALENTE_WX_WCN_CMD_DATA2, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, 0),
-        GPIO_CFG(VALENTE_WX_WCN_CMD_DATA0, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, 0),
-};
-static void msm_set_sleep_gpio_wa(void)
-{
-	int i;
-	for(i = 0;i < 3;i++)
-		gpio_tlmm_config(msm_gpio_wa[i], GPIO_CFG_ENABLE);
-}
-#endif
 void gpio_set_diag_gpio_table(unsigned long *dwMFG_gpio_table)
 {
 	int i = 0;
@@ -141,9 +125,5 @@ void gpio_set_diag_gpio_table(unsigned long *dwMFG_gpio_table)
 			continue;
 		}
 	}
-#ifdef CONFIG_MACH_VALENTE_WX
-	if (board_mfg_mode() == 4)
-		msm_set_sleep_gpio_wa();
-#endif
 }
 EXPORT_SYMBOL(gpio_set_diag_gpio_table);

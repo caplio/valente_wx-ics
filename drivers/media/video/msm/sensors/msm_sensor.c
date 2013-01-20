@@ -119,14 +119,13 @@ int32_t msm_sensor_set_fps(struct msm_sensor_ctrl_t *s_ctrl,
 }
 
 int32_t msm_sensor_write_exp_gain1(struct msm_sensor_ctrl_t *s_ctrl,
-		int mode, uint16_t gain, uint32_t line) /* HTC Angie 20111019 - Fix FPS */
+		int mode, uint16_t gain, uint16_t dig_gain, uint32_t line) /* HTC Angie 20111019 - Fix FPS */
 {
 	uint32_t fl_lines;
 	uint8_t offset;
 
 /* HTC_START Angie 20111019 - Fix FPS */
 	uint32_t fps_divider = Q10;
-
 	if (mode == SENSOR_PREVIEW_MODE)
 		fps_divider = s_ctrl->fps_divider;
 
@@ -153,12 +152,14 @@ int32_t msm_sensor_write_exp_gain1(struct msm_sensor_ctrl_t *s_ctrl,
 	msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
 		s_ctrl->sensor_exp_gain_info->global_gain_addr, gain,
 		MSM_CAMERA_I2C_WORD_DATA);
+	if (s_ctrl->func_tbl->sensor_set_dig_gain)
+		s_ctrl->func_tbl->sensor_set_dig_gain(s_ctrl, dig_gain);
 	s_ctrl->func_tbl->sensor_group_hold_off(s_ctrl);
 	return 0;
 }
 
 int32_t msm_sensor_write_exp_gain2(struct msm_sensor_ctrl_t *s_ctrl,
-		int mode, uint16_t gain, uint32_t line) /* HTC Angie 20111019 - Fix FPS */
+		int mode, uint16_t gain, uint16_t dig_gain, uint32_t line) /* HTC Angie 20111019 - Fix FPS */
 {
 	uint32_t fl_lines, ll_pclk, ll_ratio;
 	uint8_t offset;
@@ -189,6 +190,8 @@ int32_t msm_sensor_write_exp_gain2(struct msm_sensor_ctrl_t *s_ctrl,
 	msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
 		s_ctrl->sensor_exp_gain_info->global_gain_addr, gain,
 		MSM_CAMERA_I2C_WORD_DATA);
+	if (s_ctrl->func_tbl->sensor_set_dig_gain)
+		s_ctrl->func_tbl->sensor_set_dig_gain(s_ctrl, dig_gain);
 	s_ctrl->func_tbl->sensor_group_hold_off(s_ctrl);
 	return 0;
 }
@@ -218,7 +221,7 @@ int32_t msm_sensor_setting(struct msm_sensor_ctrl_t *s_ctrl,
 		/*TODO : pointer to each sensor driver to get correct delay time*/
 		if(!first_init)
 			mdelay(50);
-		first_init = 0;
+
 		msm_sensor_write_res_settings(s_ctrl, res);
 		if (s_ctrl->curr_csi_params != s_ctrl->csi_params[res]) {
 			s_ctrl->curr_csi_params = s_ctrl->csi_params[res];
@@ -235,6 +238,7 @@ int32_t msm_sensor_setting(struct msm_sensor_ctrl_t *s_ctrl,
 		}
 #ifdef CONFIG_RAWCHIP
 			if (s_ctrl->sensordata->use_rawchip) {
+				rawchip_data.sensor_name = s_ctrl->sensordata->sensor_name;
 				rawchip_data.datatype = s_ctrl->curr_csi_params->csid_params.lut_params.vc_cfg->dt;
 				rawchip_data.lane_cnt = s_ctrl->curr_csi_params->csid_params.lane_cnt;
 				rawchip_data.pixel_clk = s_ctrl->msm_sensor_reg->output_settings[res].op_pixel_clk;
@@ -260,6 +264,7 @@ int32_t msm_sensor_setting(struct msm_sensor_ctrl_t *s_ctrl,
 					s_ctrl->msm_sensor_reg->output_settings[MSM_SENSOR_RES_FULL].line_length_pclk;
 				rawchip_data.fullsize_frame_length_lines =
 					s_ctrl->msm_sensor_reg->output_settings[MSM_SENSOR_RES_FULL].frame_length_lines;
+				rawchip_data.use_rawchip = s_ctrl->sensordata->use_rawchip;/* HTC_START_Simon.Ti_Liu_20120702_Enhance_bypass */
 
 				ktime_get_ts(&ts_start);
 				rawchip_set_size(rawchip_data);
@@ -276,6 +281,7 @@ int32_t msm_sensor_setting(struct msm_sensor_ctrl_t *s_ctrl,
 			NOTIFY_ISPIF_STREAM, (void *)ISPIF_STREAM(
 			PIX0, ISPIF_ON_FRAME_BOUNDARY));
 		s_ctrl->func_tbl->sensor_start_stream(s_ctrl);
+		first_init = 0;
 	}
 	return rc;
 }
@@ -389,6 +395,7 @@ int32_t msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
 					s_ctrl,
 					cdata.mode, /* HTC Angie 20111019 - Fix FPS */
 					cdata.cfg.exp_gain.gain,
+					cdata.cfg.exp_gain.dig_gain,
 					cdata.cfg.exp_gain.line);
 			break;
 
@@ -404,6 +411,7 @@ int32_t msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
 					s_ctrl,
 					cdata.mode, /* HTC Angie 20111019 - Fix FPS */
 					cdata.cfg.exp_gain.gain,
+					cdata.cfg.exp_gain.dig_gain,
 					cdata.cfg.exp_gain.line);
 			break;
 
@@ -559,12 +567,17 @@ int32_t msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 			s_ctrl->sensor_id_info->sensor_id_reg_addr, &chipid,
 			MSM_CAMERA_I2C_WORD_DATA);
 	if (rc < 0) {
-		pr_err("%s: read id failed\n", __func__);
+		pr_warning("%s: read id failed\n", __func__);
 		return rc;
 	}
 
 	pr_info("%s: msm_sensor id: 0x%x,s_ctrl->sensor_id_info->sensor_id=0x%x\n", __func__, chipid, s_ctrl->sensor_id_info->sensor_id);
 	if (chipid != s_ctrl->sensor_id_info->sensor_id) {
+		if (chipid == 0x174 && s_ctrl->sensor_id_info->sensor_id == 0x175){
+		//Optical promise ONLY this 100 pcs have wrong. Others sensor will be OK.
+			pr_info("%s: WA for Liteon module written wrong sensor ID as IMX174\n", __func__);
+			return rc;
+		}
 		pr_info("msm_sensor_match_id chip id doesnot match\n");
 		return -ENODEV;
 	}
@@ -709,7 +722,7 @@ int32_t msm_sensor_probe(struct msm_sensor_ctrl_t *s_ctrl,
 
 	goto power_down;
 probe_fail:
-	pr_err("%s: _probe_failure\n", __func__);
+	pr_warning("%s: _probe_failure\n", __func__);
 	i2c_del_driver(s_ctrl->sensor_i2c_driver);
 power_down:
 	s_ctrl->func_tbl->sensor_power_down(info);

@@ -91,12 +91,12 @@ void htc_idle_stat_show(u32 total_time)
 	for (i = 0 ; i < 3 ; i++) {
 		if (htc_idle_Stat[i].count) {
 			idle_time += htc_idle_Stat[i].time;
-			printk(KERN_INFO "C%d: %d %dms\n", i, htc_idle_Stat[i].count, htc_idle_Stat[i].time / 1000);
+			printk(KERN_INFO "[K] C%d: %d %dms\n", i, htc_idle_Stat[i].count, htc_idle_Stat[i].time / 1000);
 		}
 	}
 	htc_xo_vddmin_stat_show();
         msm_rpm_dump_stat();
-	printk(KERN_INFO "CPU0 usage: %d\n", ((total_time - (idle_time)) * 100) / total_time);
+	printk(KERN_INFO "[K] CPU0 usage: %d\n", ((total_time - (idle_time)) * 100) / total_time);
 }
 
 /* Temp mark it*/
@@ -152,12 +152,12 @@ void htc_xo_vddmin_stat_show(void)
 	uint64_t vddmin_time = 0;
 	if (htc_get_xo_vdd_min_info(&xo_count, &xo_time, &vddmin_count, &vddmin_time)) {
 		if (xo_count > previous_xo_count) {
-			printk(KERN_INFO "XO: %u, %llums\n", xo_count-previous_xo_count, xo_time-previous_xo_time);
+			printk(KERN_INFO "[K] XO: %u, %llums\n", xo_count-previous_xo_count, xo_time-previous_xo_time);
 			previous_xo_count = xo_count;
 			previous_xo_time = xo_time;
 		}
 		if (vddmin_count > previous_vddmin_count) {
-			printk(KERN_INFO "Vdd-min: %u, %llums\n", vddmin_count-previous_vddmin_count, vddmin_time-previous_vddmin_time);
+			printk(KERN_INFO "[K] Vdd-min: %u, %llums\n", vddmin_count-previous_vddmin_count, vddmin_time-previous_vddmin_time);
 			previous_vddmin_count = vddmin_count;
 			previous_vddmin_time = vddmin_time;
 		}
@@ -174,8 +174,8 @@ void htc_pm_monitor_work(struct work_struct *work)
 
 	getnstimeofday(&ts);
 	rtc_time_to_tm(ts.tv_sec - (sys_tz.tz_minuteswest * 60), &tm);
-	printk(KERN_INFO "[PM] hTC PM Statistic ");
-	printk(KERN_INFO "%02d-%02d %02d:%02d:%02d \n", tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+	printk(KERN_INFO "[K] [PM] hTC PM Statistic ");
+	printk(KERN_INFO "[K] %02d-%02d %02d:%02d:%02d \n", tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	htc_show_interrupts();
 	htc_xo_block_clks_count_show();
 	htc_xo_block_clks_count_clear();
@@ -321,9 +321,9 @@ void htc_kernel_top(void)
 		 dump_top_stack = 1;
 
 	/* print most time consuming processes */
-	printk(KERN_INFO "CPU Usage\tPID\t\tName\n");
+	printk(KERN_INFO "[K] CPU Usage\tPID\t\tName\n");
 	for (i = 0 ; i < NUM_BUSY_THREAD_CHECK ; i++) {
-		printk(KERN_INFO "%lu%%\t\t%d\t\t%s\t\t\t%d\n",
+		printk(KERN_INFO "[K] %lu%%\t\t%d\t\t%s\t\t\t%d\n",
 				curr_proc_delta[top_loading[i]] * 100 / delta_time,
 				top_loading[i],
 				task_ptr_array[top_loading[i]]->comm,
@@ -338,7 +338,7 @@ void htc_kernel_top(void)
 			t = task_ptr_array[top_loading[i]];
 			/* dump all the thread stack of this process */
 			do {
-				printk(KERN_INFO "\n###pid:%d name:%s state:%lu ppid:%d stime:%lu utime:%lu\n",
+				printk(KERN_INFO "\n[K] ###pid:%d name:%s state:%lu ppid:%d stime:%lu utime:%lu\n",
 				t->pid, t->comm, t->state, t->real_parent->pid, t->stime, t->utime);
 				show_stack(t, t->stack);
 				t = next_thread(t);
@@ -390,7 +390,7 @@ void htc_monitor_init(void)
 	if (htc_pm_monitor_wq == NULL) {
 		/* Create private workqueue... */
 		htc_pm_monitor_wq = create_workqueue("htc_pm_monitor_wq");
-		printk(KERN_INFO "Create HTC private workqueue(0x%x)...\n", (unsigned int)htc_pm_monitor_wq);
+		printk(KERN_INFO "[K] Create HTC private workqueue(0x%x)...\n", (unsigned int)htc_pm_monitor_wq);
 	}
 
 	if (htc_pm_monitor_wq)

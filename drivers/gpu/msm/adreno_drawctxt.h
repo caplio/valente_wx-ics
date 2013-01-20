@@ -30,7 +30,7 @@
 #define CTXT_FLAGS_GMEM_SAVE		0x00000200
 /* gmem can be restored from shadow */
 #define CTXT_FLAGS_GMEM_RESTORE		0x00000400
-/*preamble packed in cmdbuffer for context switching*/
+/* preamble packed in cmdbuffer for context switching */
 #define CTXT_FLAGS_PREAMBLE		0x00000800
 /* shader must be copied to shadow */
 #define CTXT_FLAGS_SHADER_SAVE		0x00002000
@@ -40,6 +40,12 @@
 #define CTXT_FLAGS_GPU_HANG		0x00008000
 /* Specifies there is no need to save GMEM */
 #define CTXT_FLAGS_NOGMEMALLOC          0x00010000
+/* Trash state for context */
+#define CTXT_FLAGS_TRASHSTATE		0x00020000
+/* per context timestamps enabled */
+#define CTXT_FLAGS_PER_CONTEXT_TS	0x00040000
+/* Context has caused a GPU hang and recovered properly */
+#define CTXT_FLAGS_GPU_HANG_RECOVERED	0x00008000
 
 struct kgsl_device;
 struct adreno_device;
@@ -69,6 +75,7 @@ struct gmem_shadow_t {
 };
 
 struct adreno_context {
+	unsigned int id;
 	uint32_t flags;
 	struct kgsl_pagetable *pagetable;
 	struct kgsl_memdesc gpustate;

@@ -248,6 +248,12 @@ struct mdp4_hsic_regs {
 	int32_t dirty;
 };
 
+struct mdp4_iommu_pipe_info {
+	struct ion_handle *ihdl[MDP4_MAX_PLANE];
+	struct ion_handle *prev_ihdl[MDP4_MAX_PLANE];
+	u8 mark_unmap;
+};
+
 struct mdp4_overlay_pipe {
 	uint32 pipe_used;
 	uint32 pipe_type;		/* rgb, video/graphic */
@@ -420,6 +426,7 @@ int mdp4_overlay_dtv_set(struct msm_fb_data_type *mfd,
 			struct mdp4_overlay_pipe *pipe);
 int mdp4_overlay_dtv_unset(struct msm_fb_data_type *mfd,
 			struct mdp4_overlay_pipe *pipe);
+void mdp4_overlay_dtv_wait4vsync(void);
 #else
 static inline void mdp4_overlay_dtv_vsync_push(struct msm_fb_data_type *mfd,
 	struct mdp4_overlay_pipe *pipe)
@@ -445,6 +452,10 @@ static inline int mdp4_overlay_dtv_unset(struct msm_fb_data_type *mfd,
 			struct mdp4_overlay_pipe *pipe)
 {
 	return 0;
+}
+static inline void mdp4_overlay_dtv_wait4vsync(void)
+{
+
 }
 #endif
 
@@ -709,4 +720,5 @@ u32  mdp4_allocate_writeback_buf(struct msm_fb_data_type *mfd, u32 mix_num);
 void mdp4_init_writeback_buf(struct msm_fb_data_type *mfd, u32 mix_num);
 void mdp4_free_writeback_buf(struct msm_fb_data_type *mfd, u32 mix_num);
 
+void mdp4_iommu_unmap(struct mdp4_overlay_pipe *pipe);
 #endif /* MDP_H */

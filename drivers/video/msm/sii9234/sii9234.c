@@ -42,7 +42,7 @@
 #include "TPI.h"
 #include "mhl_defs.h"
 
-
+bool cable_det_before_vbus = 0;
 /*********************************************************************
   Define & Macro
 ***********************************************************************/
@@ -119,6 +119,7 @@ unsigned long suspend_jiffies;
 unsigned long irq_jiffies;
 bool g_bEnterEarlySuspend = false;
 bool g_bProbe = false;
+bool disable_interswitch = false;
 bool mhl_wakeuped = false;
 static bool g_bInitCompleted = false;
 static bool sii9244_interruptable = false;
@@ -167,7 +168,7 @@ static void detect_charger_handler(struct work_struct *w)
 	queue_delayed_work(pInfo->wq, &pInfo->detect_charger_work, HZ*2);
 }
 #endif
-#ifdef CONFIG_INTERNAL_CHARGING_SUPPORT
+#if CONFIG_INTERNAL_CHARGING_SUPPORT
 void check_mhl_5v_status(void)
 {
 	T_MHL_SII9234_INFO *pInfo = sii9234_info_ptr;
@@ -608,9 +609,9 @@ void sii9234_mhl_device_wakeup(void)
 				__func__, pInfo->irq, pInfo->intr_pin, ret);
 			ret = -EIO;
 		}
-	}
+	} else
+		enable_irq(pInfo->irq);
 
-	enable_irq(pInfo->irq);
 	mhl_wakeuped = true;
 
 	/*switch to D0, we now depends on Sii9244 to detect the connection by MHL interrupt*/
@@ -652,6 +653,7 @@ static void irq_timeout_handler(struct work_struct *w)
 			ret = -EIO;
 		}
 		enable_irq(pInfo->irq);
+		cable_det_before_vbus = 0;
 		update_mhl_status(false, CONNECT_TYPE_UNKNOWN);
 	}
 }
@@ -707,10 +709,9 @@ static void sii9234_early_suspend(struct early_suspend *h)
 			cancel_delayed_work(&pInfo->detect_charger_work);
 #endif
 			sii9234_disableIRQ();
-
+			/*follow suspend GPIO state,  disable hdmi HPD*/
 			if (pInfo->mhl_1v2_power)
 				pInfo->mhl_1v2_power(0);
-			/*follow suspend GPIO state,  disable hdmi HPD*/
 			if (pInfo->mhl_usb_switch)
 				pInfo->mhl_usb_switch(0);
 			/*D3 mode with internal switch in by-pass mode*/
@@ -723,7 +724,11 @@ static void sii9234_early_suspend(struct early_suspend *h)
 		}
 	} else {
 		/*in case cable_detect call D2ToD3(), make sure MHL chip is go Sleep mode correctly*/
+		/*for the case of plug non-MHL accessory, need to disable internal switch for avoiding toggle USB_ID pin*/
+		if (cable_get_accessory_type() != DOCK_STATE_MHL )
+			disable_interswitch = true;
 		TPI_Init();
+		disable_interswitch = false;
 	}
 	mutex_unlock(&mhl_early_suspend_sem);
 }
@@ -739,6 +744,7 @@ static void sii9234_late_resume(struct early_suspend *h)
 	queue_delayed_work(pInfo->wq, &pInfo->mhl_on_delay_work, HZ);
 
 	g_bEnterEarlySuspend = false;
+	cable_det_before_vbus = 0;
 	mutex_unlock(&mhl_early_suspend_sem);
 }
 static void mhl_turn_off_5v(struct work_struct *w)
@@ -1036,6 +1042,10 @@ static void mhl_usb_status_notifier_func(int cable_type)
 		if(pInfo->statMHL == CONNECT_TYPE_INTERNAL) {
 			if(time_after(jiffies, suspend_jiffies + HZ))
 				update_mhl_status(true, CONNECT_TYPE_AC);
+		} else if (pInfo->statMHL == CONNECT_TYPE_UNKNOWN && cable_det_before_vbus != 1) {
+			need_simulate_cable_out = false;
+			cancel_delayed_work(&pInfo->irq_timeout_work);
+			update_mhl_status(true, CONNECT_TYPE_USB);
 		} else {
 			update_mhl_status(true, CONNECT_TYPE_INTERNAL);
 		}

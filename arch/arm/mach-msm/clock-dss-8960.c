@@ -97,6 +97,8 @@ int hdmi_pll_enable(void)
 {
 	unsigned int val;
 	u32 ahb_en_reg, ahb_enabled;
+	unsigned int timeout_count;
+	unsigned int retry_count;
 
 	ahb_en_reg = readl_relaxed(AHB_EN_REG);
 	ahb_enabled = ahb_en_reg & BIT(4);
@@ -135,8 +137,25 @@ int hdmi_pll_enable(void)
 	writel_relaxed(val, HDMI_PHY_PLL_PWRDN_B);
 	writel_relaxed(0x80, HDMI_PHY_REG_2);
 
-	while (!(readl_relaxed(HDMI_PHY_PLL_STATUS0) & BIT(0)))
-		cpu_relax();
+	timeout_count = 1000;
+	retry_count = 0;
+	while (!(readl_relaxed(HDMI_PHY_PLL_STATUS0) & BIT(0))){
+		if (--timeout_count == 0) {
+
+			writel_relaxed(0x8D, HDMI_PHY_PLL_LOCKDET_CFG2);
+			cpu_relax();
+			writel_relaxed(0x0D, HDMI_PHY_PLL_LOCKDET_CFG2);
+			timeout_count = 1000;
+			retry_count++;
+			pr_info("%s: HDMI PLL not locked after %d iterations. "
+				"Asserting a PLL S/W reset before trying again",
+				__func__, timeout_count);
+		}
+		if(retry_count == 5){
+			pr_info("%s: HDMI PLL enable retry 5 times fail, skip\n", __func__);
+			break;
+		}
+	}
 
 	if (!ahb_enabled)
 		writel_relaxed(ahb_en_reg & ~BIT(4), AHB_EN_REG);
@@ -170,6 +189,8 @@ void hdmi_pll_disable(void)
 	if (!ahb_enabled)
 		writel_relaxed(ahb_en_reg & ~BIT(4), AHB_EN_REG);
 	hdmi_pll_on = 0;
+
+	pr_info("%s: Disabled\n", __func__);
 }
 
 unsigned hdmi_pll_get_rate(void)

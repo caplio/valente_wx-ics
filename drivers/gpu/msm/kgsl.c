@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2011, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -55,6 +55,7 @@ static struct ion_client *kgsl_ion_client;
  * @ts - the timestamp to trigger the event on
  * @cb - callback function to call when the timestamp expires
  * @priv - private data for the specific event type
+ * @owner - driver instance that owns this event
  *
  * @returns - 0 on success or error code on failure
  */
@@ -115,6 +116,7 @@ static int kgsl_add_event(struct kgsl_device *device, u32 ts,
 	if (n == &device->events)
 		list_add_tail(&event->list, &device->events);
 
+	queue_work(device->work_queue, &device->ts_expired_ws);
 	return 0;
 }
 
@@ -160,6 +162,14 @@ kgsl_mem_entry_create(void)
 		kref_init(&entry->refcount);
 
 	return entry;
+}
+
+//HTC Provide api for memory logger tool
+unsigned int kgsl_get_alloc_size(void)
+{
+	unsigned int ret = 0;
+	ret = kgsl_driver.stats.vmalloc;
+	return ret;
 }
 
 void
@@ -405,6 +415,8 @@ static int kgsl_suspend_device(struct kgsl_device *device, pm_message_t state)
 		wait_for_completion(&device->suspend_gate);
 		mutex_lock(&device->mutex);
 	}
+	/* Don't let the timer wake us during suspended sleep. */
+	del_timer_sync(&device->idle_timer);
 	switch (device->state) {
 		case KGSL_STATE_INIT:
 			break;
@@ -416,8 +428,11 @@ static int kgsl_suspend_device(struct kgsl_device *device, pm_message_t state)
 			/* Get the completion ready to be waited upon. */
 			INIT_COMPLETION(device->hwaccess_gate);
 			device->ftbl->suspend_context(device);
-			kgsl_pwrctrl_stop_work(device);
 			device->ftbl->stop(device);
+			if (device->idle_wakelock.name)
+				wake_unlock(&device->idle_wakelock);
+			pm_qos_update_request(&device->pm_qos_req_dma,
+						PM_QOS_DEFAULT_VALUE);
 			kgsl_pwrctrl_set_state(device, KGSL_STATE_SUSPEND);
 			break;
 		case KGSL_STATE_SLUMBER:
@@ -499,7 +514,6 @@ void kgsl_early_suspend_driver(struct early_suspend *h)
 					struct kgsl_device, display_off);
 	KGSL_PWR_WARN(device, "early suspend start\n");
 	mutex_lock(&device->mutex);
-	kgsl_pwrctrl_stop_work(device);
 	kgsl_pwrctrl_request_state(device, KGSL_STATE_SLUMBER);
 	kgsl_pwrctrl_sleep(device);
 	mutex_unlock(&device->mutex);
@@ -528,6 +542,7 @@ void kgsl_late_resume_driver(struct early_suspend *h)
 					struct kgsl_device, display_off);
 	KGSL_PWR_WARN(device, "late resume start\n");
 	mutex_lock(&device->mutex);
+	device->pwrctrl.restore_slumber = 0;
 	kgsl_pwrctrl_wake(device);
 	if (!device->idle_timer_enabled) {
 		mod_timer(&device->idle_timer,
@@ -535,7 +550,6 @@ void kgsl_late_resume_driver(struct early_suspend *h)
 		KGSL_PWR_WARN(device, "enable idle_timer\n");
 	}
 	device->idle_timer_enabled = true;
-	device->pwrctrl.restore_slumber = 0;
 	kgsl_pwrctrl_pwrlevel_change(device, KGSL_PWRLEVEL_TURBO);
 	mutex_unlock(&device->mutex);
 	kgsl_check_idle(device);
@@ -652,7 +666,6 @@ static int kgsl_release(struct inode *inodep, struct file *filep)
 
 	device->open_count--;
 	if (device->open_count == 0) {
-		kgsl_pwrctrl_stop_work(device);
 		result = device->ftbl->stop(device);
 		kgsl_pwrctrl_set_state(device, KGSL_STATE_INIT);
 	}
@@ -808,6 +821,40 @@ static long kgsl_ioctl_device_getproperty(struct kgsl_device_private *dev_priv,
 		if (copy_to_user(param->value, &version, sizeof(version)))
 			result = -EFAULT;
 
+		break;
+	}
+	case KGSL_PROP_GPU_RESET_STAT:
+	{
+		/* Return reset status of given context and clear it */
+		uint32_t id;
+		struct kgsl_context *context;
+
+		if (param->sizebytes != sizeof(unsigned int)) {
+			result = -EINVAL;
+			break;
+		}
+		/* We expect the value passed in to contain the context id */
+		if (copy_from_user(&id, param->value,
+			sizeof(unsigned int))) {
+			result = -EFAULT;
+			break;
+		}
+		context = kgsl_find_context(dev_priv, id);
+		if (!context) {
+			result = -EINVAL;
+			break;
+		}
+		/*
+		 * Copy the reset status to value which also serves as
+		 * the out parameter
+		 */
+		if (copy_to_user(param->value, &(context->reset_status),
+			sizeof(unsigned int))) {
+			result = -EFAULT;
+			break;
+		}
+		/* Clear reset status once its been queried */
+		context->reset_status = KGSL_CTX_STAT_NO_ERROR;
 		break;
 	}
 	default:
@@ -1643,9 +1690,12 @@ static long kgsl_ioctl_map_user_mem(struct kgsl_device_private *dev_priv,
 	kgsl_check_idle(dev_priv->device);
 	return result;
 
- error_put_file_ptr:
-	if (entry->priv_data)
+error_put_file_ptr:
+	if (memtype == KGSL_USER_MEM_TYPE_ION) {
+		ion_free(kgsl_ion_client, entry->priv_data);
+	} else if (entry->priv_data) {
 		fput(entry->priv_data);
+	}
 
 error:
 	kfree(entry);
@@ -1782,6 +1832,7 @@ static void kgsl_genlock_event_cb(struct kgsl_device *device,
  * @timestamp - Timestamp to trigger the event
  * @data - User space buffer containing struct kgsl_genlock_event_priv
  * @len - length of the userspace buffer
+ * @owner - driver instance that owns this event
  * @returns 0 on success or error code on error
  *
  * Attack to a genlock handle and register an event to release the
@@ -2126,8 +2177,8 @@ void kgsl_unregister_device(struct kgsl_device *device)
 	kgsl_cffdump_close(device->id);
 	kgsl_pwrctrl_uninit_sysfs(device);
 
-	if (cpu_is_msm8x60())
-		wake_lock_destroy(&device->idle_wakelock);
+	wake_lock_destroy(&device->idle_wakelock);
+	pm_qos_remove_request(&device->pm_qos_req_dma);
 
 	idr_destroy(&device->context_idr);
 
@@ -2219,8 +2270,9 @@ kgsl_register_device(struct kgsl_device *device)
 	if (ret != 0)
 		goto err_close_mmu;
 
-	if (cpu_is_msm8x60())
-		wake_lock_init(&device->idle_wakelock, WAKE_LOCK_IDLE, device->name);
+	wake_lock_init(&device->idle_wakelock, WAKE_LOCK_IDLE, device->name);
+	pm_qos_add_request(&device->pm_qos_req_dma, PM_QOS_CPU_DMA_LATENCY,
+				PM_QOS_DEFAULT_VALUE);
 
 	idr_init(&device->context_idr);
 
@@ -2255,10 +2307,18 @@ int kgsl_device_platform_probe(struct kgsl_device *device,
 			       irqreturn_t (*dev_isr) (int, void*))
 {
 	int status = -EINVAL;
+	int i;
 	struct kgsl_memregion *regspace = NULL;
 	struct resource *res;
 	struct platform_device *pdev =
 		container_of(device->parentdev, struct platform_device, dev);
+
+	device->gputime.total = 0;
+    device->gputime.busy = 0;
+    for(i=0;i<KGSL_MAX_PWRLEVELS;i++) {
+		device->gputime_in_state[i].total = 0;
+		device->gputime_in_state[i].busy = 0;
+	}
 
 	pm_runtime_enable(device->parentdev);
 

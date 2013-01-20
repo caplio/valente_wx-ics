@@ -84,9 +84,7 @@ static struct smd_config smd_configs[] = {
 	{3, "APPS_RIVA_BT_CMD", NULL, SMD_APPS_WCNSS},
 	{4, "MBALBRIDGE", NULL, SMD_APPS_MODEM},
 	{7, "DATA1", NULL, SMD_APPS_MODEM},
-#ifndef CONFIG_USB_ANDROID_SERIAL_CT_PROJECTS
 	{9, "DATA4", NULL, SMD_APPS_MODEM},
-#endif
 	{11, "DATA11", NULL, SMD_APPS_MODEM},
 #ifdef CONFIG_BUILD_OMA_DM
 	{19, "DATA3", NULL, SMD_APPS_MODEM},
@@ -170,7 +168,7 @@ static void smd_tty_read(unsigned long param)
 			** context here and nobody else could 'steal' our
 			** characters.
 			*/
-			printk(KERN_ERR "OOPS - smd_tty_buffer mismatch?!");
+			printk(KERN_ERR "[K] OOPS - smd_tty_buffer mismatch?!");
 		}
 
 		wake_lock_timeout(&info->wake_lock, HZ / 2);

@@ -24,6 +24,13 @@
 #include <sound/apr_audio.h>
 #include <sound/q6afe.h>
 
+//htc audio ++
+#undef pr_info
+#undef pr_err
+#define pr_info(fmt, ...) pr_aud_info(fmt, ##__VA_ARGS__)
+#define pr_err(fmt, ...) pr_aud_err(fmt, ##__VA_ARGS__)
+//htc audio --
+
 #define TIMEOUT_MS 1000
 #define AUDIO_RX 0x0
 #define AUDIO_TX 0x1
@@ -76,6 +83,11 @@ static int32_t adm_callback(struct apr_client_data *data, void *priv)
 		index = afe_get_port_index(data->token);
 		pr_debug("%s: Port ID %d, index %d\n", __func__,
 			data->token, index);
+
+                if(index < 0 || index >= AFE_MAX_PORTS) {
+                    pr_err("%s:invalid port idx %d token %d\n",__func__,index,data->token);
+                    return -EINVAL;
+                }
 
 		if (data->opcode == APR_BASIC_RSP_RESULT) {
 			pr_debug("APR_BASIC_RSP_RESULT\n");
@@ -206,6 +218,11 @@ static int send_adm_cal_block(int port_id, struct acdb_cal_block *aud_cal)
 	int index = afe_get_port_index(port_id);
 
 	pr_debug("%s: Port id %d, index %d\n", __func__, port_id, index);
+
+        if(index < 0 || index >= AFE_MAX_PORTS) {
+            pr_err("%s:invalid port idx %d port_id %d\n",__func__,index,port_id);
+            return -EINVAL;
+        }
 
 	if (!aud_cal || aud_cal->cal_size == 0) {
 		pr_debug("%s: No ADM cal to send for port_id = %d!\n",
@@ -346,6 +363,11 @@ int adm_open(int port_id, int path, int rate, int channel_mode, int topology)
 	index = afe_get_port_index(port_id);
 	pr_info("%s: Port ID %d, index %d\n", __func__, port_id, index);
 
+        if(index < 0 || index >= AFE_MAX_PORTS) {
+            pr_err("%s:invalid port idx %d port_id %d\n",__func__,index,port_id);
+            return -EINVAL;
+        }
+
 	if (this_adm.apr == NULL) {
 		this_adm.apr = apr_register("ADSP", "ADM", adm_callback,
 						0xFFFFFFFF, &this_adm);
@@ -440,6 +462,11 @@ int adm_matrix_map(int session_id, int path, int num_copps,
 
 	pr_info("%s: session 0x%x path:%d num_copps:%d port_id[0]:%d\n",
 		 __func__, session_id, path, num_copps, port_id[0]);
+
+        if(index < 0 || index >= AFE_MAX_PORTS) {
+            pr_err("%s:invalid port idx %d copp_id %d\n",__func__,index,copp_id);
+            return -EINVAL;
+        }
 
 	route.hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
 				APR_HDR_LEN(APR_HDR_SIZE), APR_PKT_VER);
@@ -686,6 +713,11 @@ int adm_close(int port_id)
 		return -EINVAL;
 
 	pr_info("%s port_id=%d index %d\n", __func__, port_id, index);
+
+        if(index < 0 || index >= AFE_MAX_PORTS) {
+            pr_err("%s:invalid port idx %d port_id %d\n",__func__,index,port_id);
+            return -EINVAL;
+        }
 
 	if (!(atomic_read(&this_adm.copp_cnt[index]))) {
 		pr_err("%s: copp count for port[%d]is 0\n", __func__, port_id);

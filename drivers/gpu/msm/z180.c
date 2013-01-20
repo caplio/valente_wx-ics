@@ -348,6 +348,9 @@ static void z180_cmdstream_start(struct kgsl_device *device)
 	struct z180_device *z180_dev = Z180_DEVICE(device);
 	unsigned int cmd = VGV3_NEXTCMD_JUMP << VGV3_NEXTCMD_NEXTCMD_FSHIFT;
 
+	KGSL_PWR_INFO(device, "reset timestamp from(%d, %d), device %d\n",
+	    z180_dev->timestamp, z180_dev->current_timestamp, device->id);
+
 	z180_dev->timestamp = 0;
 	z180_dev->current_timestamp = 0;
 
@@ -439,12 +442,13 @@ z180_cmdstream_issueibcmds(struct kgsl_device_private *dev_priv,
 	    (ctrl & KGSL_CONTEXT_CTX_SWITCH)) {
 		KGSL_CMD_INFO(device, "context switch %d -> %d\n",
 			context->id, z180_dev->ringbuffer.prevctx);
-		kgsl_mmu_setstate(device, pagetable);
+		kgsl_mmu_setstate(device, pagetable,
+				0);
 		cnt = PACKETSIZE_STATESTREAM;
 		ofs = 0;
 	}
-	kgsl_setstate(device, kgsl_mmu_pt_get_flags(device->mmu.hwpagetable,
-						    device->id));
+	kgsl_setstate(device, 0, kgsl_mmu_pt_get_flags(device->mmu.hwpagetable,
+			device->id));
 
 	result = wait_event_interruptible_timeout(device->wait_queue,
 				  room_in_rb(z180_dev),
@@ -587,6 +591,8 @@ static int z180_stop(struct kgsl_device *device)
 {
 	device->ftbl->irqctrl(device, 0);
 	z180_idle(device, KGSL_TIMEOUT_DEFAULT);
+
+	del_timer_sync(&device->idle_timer);
 
 	kgsl_mmu_stop(device);
 
@@ -828,6 +834,15 @@ static int z180_wait(struct kgsl_device *device,
 {
 	int status = -EINVAL;
 	long timeout = 0;
+	unsigned int ts_processed;
+
+	ts_processed = device->ftbl->readtimestamp(device,
+		KGSL_TIMESTAMP_RETIRED);
+	if (ts_processed == 0 && timestamp > 10) {
+		KGSL_DRV_ERR(device, "QCT BUG: "
+			"timestamp was reset and we are looking for %d\n",
+			timestamp);
+	}
 
 	timeout = wait_io_event_interruptible_timeout(
 			device->wait_queue,
@@ -839,6 +854,8 @@ static int z180_wait(struct kgsl_device *device,
 	else if (timeout == 0) {
 		status = -ETIMEDOUT;
 		kgsl_pwrctrl_set_state(device, KGSL_STATE_HUNG);
+		KGSL_PWR_ERR(device, "state -> HUNG, device %d ts: (curr=%d, target=%d)\n", device->id,
+		    device->ftbl->readtimestamp(device, KGSL_TIMESTAMP_RETIRED), timestamp);
 	} else
 		status = timeout;
 
@@ -856,7 +873,8 @@ z180_drawctxt_destroy(struct kgsl_device *device,
 	if (z180_dev->ringbuffer.prevctx == context->id) {
 		z180_dev->ringbuffer.prevctx = Z180_INVALID_CONTEXT;
 		device->mmu.hwpagetable = device->mmu.defaultpagetable;
-		kgsl_setstate(device, KGSL_MMUFLAGS_PTUPDATE);
+		kgsl_setstate(device, 0,
+				KGSL_MMUFLAGS_PTUPDATE);
 	}
 }
 

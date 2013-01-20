@@ -29,6 +29,8 @@
 #include "xattr.h"
 #include "acl.h"
 
+#include <trace/events/ext4.h>
+#include <trace/events/mmcio.h>
 /*
  * Called when an inode is released. Note that this is different
  * from ext4_file_open: open gets called at every open, but release
@@ -97,6 +99,7 @@ ext4_file_write(struct kiocb *iocb, const struct iovec *iov,
 	int unaligned_aio = 0;
 	int ret;
 
+	trace_ext4_file_write(iocb->ki_filp->f_path.dentry, iocb->ki_left);
 	/*
 	 * If we have encountered a bitmap-format file, the size limit
 	 * is smaller than s_maxbytes, which is for extent-mapped files.
@@ -138,6 +141,7 @@ ext4_file_write(struct kiocb *iocb, const struct iovec *iov,
 	if (unaligned_aio)
 		mutex_unlock(ext4_aio_mutex(inode));
 
+	trace_file_write_done(iocb->ki_filp);
 	return ret;
 }
 

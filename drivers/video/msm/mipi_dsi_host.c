@@ -33,6 +33,7 @@
 #include <mach/gpio.h>
 #include <mach/clk.h>
 #include <mach/dma.h>
+#include <mach/debug_display.h>
 
 #include "msm_fb.h"
 #include "mipi_dsi.h"
@@ -1038,6 +1039,10 @@ void mipi_dsi_mdp_busy_wait(struct msm_fb_data_type *mfd)
 {
 	unsigned long flag;
 	int need_wait = 0;
+#if 1 /* HTC_CSP_START */
+	int retry_count = 0;
+	long timeout;
+#endif /* HTC_CSP_END */
 
 	pr_debug("%s: start pid=%d\n",
 				__func__, current->pid);
@@ -1052,7 +1057,32 @@ void mipi_dsi_mdp_busy_wait(struct msm_fb_data_type *mfd)
 		/* wait until DMA finishes the current job */
 		pr_debug("%s: pending pid=%d\n",
 				__func__, current->pid);
+
+#if 1 /* HTC_CSP_START */
+		timeout = wait_for_completion_timeout(&dsi_mdp_comp, HZ/5);
+
+		while (!timeout && retry_count++ < 15) {
+			rmb();
+			if(dsi_mdp_busy == FALSE) {
+				PR_DISP_INFO("%s(%d)timeout but dsi not busy now\n", __func__, __LINE__);
+				break;
+			} else {
+				PR_DISP_INFO("%s(%d)timeout but dsi still busy\n", __func__, __LINE__);
+				PR_DISP_INFO("###need_wait:%d pending pid=%d dsi_clk_on=%d\n", need_wait, current->pid, mipi_dsi_clk_on);
+				PR_DISP_INFO("RGB1:%x, RGB2:%x, VG1:%x, VG2:%x\n", inpdw(msm_mdp_base + 0x41000), inpdw(msm_mdp_base + 0x51000), inpdw(msm_mdp_base + 0x21000), inpdw(msm_mdp_base + 0x31000));
+				timeout = wait_for_completion_timeout(&dsi_mdp_comp, HZ/5);
+			}
+		}
+
+		if (retry_count >= 15) {
+			PR_DISP_INFO("###mdp busy wait retry timed out\n");
+			spin_lock_irqsave(&mdp_spin_lock, flag);
+			dsi_mdp_busy = FALSE;
+			spin_unlock_irqrestore(&mdp_spin_lock, flag);
+		}
+#else /* HTC_CSP_END */
 		wait_for_completion(&dsi_mdp_comp);
+#endif
 	}
 	pr_debug("%s: done pid=%d\n",
 				__func__, current->pid);

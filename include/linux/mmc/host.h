@@ -158,6 +158,8 @@ struct mmc_host {
 	u32			ocr_avail_sd;	/* SD-specific OCR */
 	u32			ocr_avail_mmc;	/* MMC-specific OCR */
 	struct notifier_block	pm_notify;
+	int					burst_mode;
+	int					tp_enable;
 
 #define MMC_VDD_165_195		0x00000080	/* VDD voltage 1.65 - 1.95 */
 #define MMC_VDD_20_21		0x00000100	/* VDD voltage 2.0 ~ 2.1 */
@@ -365,12 +367,7 @@ extern int mmc_resume_bus(struct mmc_host *host);
 
 extern int mmc_suspend_host(struct mmc_host *);
 extern int mmc_resume_host(struct mmc_host *);
-#ifdef CONFIG_MMC_CPRM_SUPPORT
-/* For [3 party] tony */
-extern int mmc_read_card_info(struct mmc_card *card);
-extern int mmc_read_sd_status(struct mmc_card *card);
-/* 2012-03-26 */
-#endif
+
 extern int mmc_power_save_host(struct mmc_host *host);
 extern int mmc_power_restore_host(struct mmc_host *host);
 

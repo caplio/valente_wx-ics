@@ -853,14 +853,14 @@ static void hdmi_msm_hpd_state_work(struct work_struct *work)
 			switch_set_state(&hdmi_msm_state->hpd_switch, 1);
 #endif
 			hdmi_msm_hdcp_enable();
-/*#ifndef CONFIG_FB_MSM_HDMI_MSM_PANEL_HDCP_SUPPORT*/
+#ifndef CONFIG_FB_MSM_HDMI_MSM_PANEL_HDCP_SUPPORT
 			/* Send Audio for HDMI Compliance Cases*/
 			envp[0] = "HDCP_STATE=PASS";
 			envp[1] = NULL;
 			DEV_INFO("HDMI HPD: sense : send HDCP_PASS\n");
 			kobject_uevent_env(external_common_state->uevent_kobj,
 				KOBJ_CHANGE, envp);
-/*#endif*/
+#endif
 		} else {
 #ifdef CONFIG_FB_MSM_HDMI_MHL_SII9234
 			DEV_INFO("CBusHPD :%d, PreCBusHPD:%d\n", CBusHPD, PreCBusHPD);
@@ -2358,7 +2358,7 @@ static int hdcp_authentication_part1(void)
 
 	if (!is_part1_done) {
 		is_part1_done = TRUE;
-
+		hr_msleep(30);
 		/* Fetch aksv from QFprom, this info should be public. */
 		qfprom_aksv_0 = inpdw(QFPROM_BASE + 0x000060D8);
 		qfprom_aksv_1 = inpdw(QFPROM_BASE + 0x000060DC);
@@ -3987,12 +3987,16 @@ static void hdmi_msm_hdcp_timer(unsigned long data)
 static void hdmi_msm_hpd_read_work(struct work_struct *work)
 {
 	uint32 hpd_ctrl;
-
+#ifdef CONFIG_INTERNAL_CHARGING_SUPPORT
+	static bool omit_read_work_in_probe = 1;
+#endif
 	clk_enable(hdmi_msm_state->hdmi_app_clk);
 	hdmi_msm_state->pd->core_power(1, 1);
 #ifdef CONFIG_INTERNAL_CHARGING_SUPPORT
-	if(probe_completed)
+	if(probe_completed && !omit_read_work_in_probe)
 		hdmi_msm_state->pd->enable_5v(1);
+	else
+		omit_read_work_in_probe = 0;
 	check_mhl_5v_status();
 #endif
 	hdmi_msm_set_mode(FALSE);

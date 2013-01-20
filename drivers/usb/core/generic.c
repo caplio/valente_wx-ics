@@ -20,6 +20,7 @@
 #include <linux/usb.h>
 #include <linux/usb/hcd.h>
 #include "usb.h"
+#include <linux/usb/otg.h>
 
 static inline const char *plural(int n)
 {
@@ -134,10 +135,12 @@ int usb_choose_configuration(struct usb_device *udev)
 			best = c;
 	}
 
-	if (insufficient_power > 0)
+	if (insufficient_power > 0) {
 		dev_info(&udev->dev, "rejected %d configuration%s "
 			"due to insufficient available bus power\n",
 			insufficient_power, plural(insufficient_power));
+		otg_send_event (OTG_EVENT_INSUFFICIENT_POWER);
+	}
 
 	if (best) {
 		i = best->desc.bConfigurationValue;

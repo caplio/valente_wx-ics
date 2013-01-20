@@ -153,17 +153,20 @@
  * sets draw initiator flags register in PFP, gets bitwise-ORed into
  * every draw initiator
  */
+#define CP_SET_DRAW_INIT_FLAGS      0x4B
+
+#define CP_SET_PROTECTED_MODE  0x5f /* sets the register protection mode */
+
+/*
+ * for a3xx
+ */
+
 /* Conditionally load a IB based on a flag */
 #define CP_COND_INDIRECT_BUFFER_PFE 0x3A /* prefetch enabled */
 #define CP_COND_INDIRECT_BUFFER_PFD 0x32 /* prefetch disabled */
 
 /* Load a buffer with pre-fetch enabled */
 #define CP_INDIRECT_BUFFER_PFE 0x3F
-
-#define CP_SET_DRAW_INIT_FLAGS      0x4B
-
-#define CP_SET_PROTECTED_MODE  0x5f /* sets the register protection mode */
-
 
 /* packet header building macros */
 #define cp_type0_packet(regindx, cnt) \

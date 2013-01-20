@@ -332,7 +332,10 @@ static int s5k6aafx_set_qtr_size_mode(enum qtr_size_mode qtr_size_mode_value)
 			rc = s5k6aafx_i2c_write_table(&s5k6aafx_regs.prev_HD[0],
 			s5k6aafx_regs.prev_HD_size);
 			mdelay(150); // reduce from 200 to 150 by vendor's suggestion
+			s5k6aafx_i2c_write(s5k6aafx_client->addr, S5K6AAFX_REG_W_ADDL, 0x0250);
+			s5k6aafx_i2c_write(s5k6aafx_client->addr, S5K6AAFX_REG_WR, 0x0000);
 			s5k6aafx_i2c_write(s5k6aafx_client->addr, S5K6AAFX_REG_W_ADDL, 0x0254);
+			s5k6aafx_i2c_write(s5k6aafx_client->addr, S5K6AAFX_REG_WR, 0x029A);
 			s5k6aafx_i2c_write(s5k6aafx_client->addr, S5K6AAFX_REG_WR, 0x01DE);
 			s5k6aafx_i2c_write(s5k6aafx_client->addr, S5K6AAFX_REG_W_ADDL, 0x021E);
 			s5k6aafx_i2c_write(s5k6aafx_client->addr, S5K6AAFX_REG_WR, 0x0001);
@@ -1201,8 +1204,11 @@ int s5k6aafx_sensor_open_init(const struct msm_camera_sensor_info *data)
 		} else {/*HD*/
 			rc = s5k6aafx_i2c_write_table(&s5k6aafx_regs.prev_HD[0],
 			s5k6aafx_regs.prev_HD_size);
-			mdelay(100);
+			mdelay(150);
+			s5k6aafx_i2c_write(s5k6aafx_client->addr, S5K6AAFX_REG_W_ADDL, 0x0250);
+			s5k6aafx_i2c_write(s5k6aafx_client->addr, S5K6AAFX_REG_WR, 0x0000);
 			s5k6aafx_i2c_write(s5k6aafx_client->addr, S5K6AAFX_REG_W_ADDL, 0x0254);
+			s5k6aafx_i2c_write(s5k6aafx_client->addr, S5K6AAFX_REG_WR, 0x029A);
 			s5k6aafx_i2c_write(s5k6aafx_client->addr, S5K6AAFX_REG_WR, 0x01DE);
 			s5k6aafx_i2c_write(s5k6aafx_client->addr, S5K6AAFX_REG_W_ADDL, 0x021E);
 			s5k6aafx_i2c_write(s5k6aafx_client->addr, S5K6AAFX_REG_WR, 0x0001);
@@ -1296,11 +1302,9 @@ int s5k6aafx_sensor_config(void __user *argp)
 	struct sensor_cfg_data cfg_data;
 	long rc = 0;
 	
-	pr_info("%s", __func__);
 	if (copy_from_user(&cfg_data,
 			   (void *)argp, sizeof(struct sensor_cfg_data)))
 		return -EFAULT;
-	pr_info("%d", cfg_data.cfgtype);
 	switch (cfg_data.cfgtype) {
 	case CFG_GET_OUTPUT_INFO:
 		rc = s5k6aafx_get_output_info(&cfg_data.cfg.output_info);
@@ -1570,8 +1574,10 @@ static int s5k6aafx_sensor_probe(const struct msm_camera_sensor_info *info,
 	s->s_release = s5k6aafx_sensor_release;
 	s->s_config = s5k6aafx_sensor_config;
 	s->s_camera_type = FRONT_CAMERA_2D;
+	/* HTC_START (klockwork issue)*/
+	if(info)
 	s->s_mount_angle = info->sensor_platform_info->mount_angle;
-
+	/* HTC_END */
 	/*init done*/
 	mdelay(800);
 

@@ -32,7 +32,13 @@ static struct freq_attr _attr_##_name = {\
 
 
 static cputime64_t cpu1_time_in_state[32] = {0};
+static cputime64_t temp_cpu0_time_in_state[32] = {0};
+static cputime64_t temp_cpu1_time_in_state[32] = {0};
+
 static unsigned int cpu1_total_trans;
+static unsigned int temp_cpu0_total_trans;
+static unsigned int temp_cpu1_total_trans;
+
 struct cpufreq_stats {
 	unsigned int cpu;
 	unsigned int total_trans;
@@ -125,6 +131,44 @@ static ssize_t show_cpu1_time_in_state(struct cpufreq_policy *policy, char *buf)
 	return len;
 }
 
+void print_cpu_freq_stats(int type)
+{
+	int i;
+	struct cpufreq_stats *stat_0 = per_cpu(cpufreq_stats_table, 0);
+	if (!stat_0)
+		return;
+	cpufreq_stats_update(stat_0->cpu);
+
+	if (type == 0) {
+		for (i = 0; i < stat_0->state_num; i++) {
+			pr_info("[CPUFREQ] CPU0 total %u %llu\n", stat_0->freq_table[i],
+				(unsigned long long) cputime64_to_clock_t(stat_0->time_in_state[i]));
+		}
+		pr_info("[CPUFREQ] CPU0 total trans %d\n", stat_0->total_trans);
+
+		for (i = 0; i < stat_0->state_num; i++) {
+			pr_info("[CPUFREQ] CPU1 total %u %llu\n", stat_0->freq_table[i],
+				(unsigned long long) cputime64_to_clock_t(cpu1_time_in_state[i]));
+		}
+		pr_info("[CPUFREQ] CPU1 total trans %d\n", cpu1_total_trans);
+	} else {
+		for (i = 0; i < stat_0->state_num; i++) {
+			pr_info("[CPUFREQ] CPU0 diff %u %llu\n", stat_0->freq_table[i],
+				(unsigned long long) cputime64_to_clock_t(stat_0->time_in_state[i]) - cputime64_to_clock_t(temp_cpu0_time_in_state[i]));
+			temp_cpu0_time_in_state[i] = stat_0->time_in_state[i];
+		}
+		pr_info("[CPUFREQ] CPU0 diff trans %d\n", stat_0->total_trans - temp_cpu0_total_trans);
+		temp_cpu0_total_trans = stat_0->total_trans;
+
+		for (i = 0; i < stat_0->state_num; i++) {
+			pr_info("[CPUFREQ] CPU1 diff %u %llu\n", stat_0->freq_table[i],
+				(unsigned long long) cputime64_to_clock_t(cpu1_time_in_state[i]) - cputime64_to_clock_t(temp_cpu1_time_in_state[i]));
+			temp_cpu1_time_in_state[i] = cpu1_time_in_state[i];
+		}
+		pr_info("[CPUFREQ] CPU0 diff trans %d\n", cpu1_total_trans - temp_cpu1_total_trans);
+		temp_cpu1_total_trans = cpu1_total_trans;
+	}
+}
 
 #ifdef CONFIG_CPU_FREQ_STAT_DETAILS
 static ssize_t show_trans_table(struct cpufreq_policy *policy, char *buf)

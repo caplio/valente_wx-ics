@@ -20,7 +20,10 @@
 #include <mach/msm_memtypes.h>
 #include "../ion_priv.h"
 
-static struct ion_device *idev;
+//HTC_START Jason Huang 20120718 --- Referred in ion_debug_get_heap()
+//static struct ion_device *idev;
+struct ion_device *idev;
+//HTC_END
 static int num_heaps;
 static struct ion_heap **heaps;
 
@@ -42,6 +45,13 @@ int msm_ion_unsecure_heap(int heap_id)
 	return ion_unsecure_heap(idev, heap_id);
 }
 EXPORT_SYMBOL(msm_ion_unsecure_heap);
+
+int msm_ion_do_cache_op(struct ion_client *client, struct ion_handle *handle,
+			void *vaddr, unsigned long len, unsigned int cmd)
+{
+	return ion_do_cache_op(client, handle, vaddr, 0, len, cmd);
+}
+EXPORT_SYMBOL(msm_ion_do_cache_op);
 
 static unsigned long msm_ion_get_base(unsigned long size, int memory_type,
 				    unsigned int align)

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -151,9 +151,8 @@ inline void msm_gemini_outbuf_q_cleanup(struct msm_gemini_q *q_p)
 		buf_p = msm_gemini_q_out(q_p);
 		if (buf_p) {
 			msm_gemini_platform_p2v(buf_p->file,
-				&buf_p->msm_buffer, &buf_p->handle);
+				&buf_p->handle);
 			GMN_DBG("%s:%d] %s\n", __func__, __LINE__, q_p->name);
-			kfree(buf_p->subsystem_id);
 			kfree(buf_p);
 		}
 	} while (buf_p);
@@ -221,10 +220,12 @@ int msm_gemini_evt_get(struct msm_gemini_device *pgmn_dev,
 
 	ctrl_cmd.type = buf_p->vbuf.type;
 	kfree(buf_p);
-
+	/* HTC_START (klockwork issue)*/
+	/*
 	GMN_DBG("%s:%d] 0x%08x %d\n", __func__, __LINE__,
 		(int) ctrl_cmd.value, ctrl_cmd.len);
-
+	*/
+	/* HTC_END */
 	if (copy_to_user(to, &ctrl_cmd, sizeof(ctrl_cmd))) {
 		GMN_PR_ERR("%s:%d]\n", __func__, __LINE__);
 		return -EFAULT;
@@ -317,9 +318,7 @@ int msm_gemini_output_get(struct msm_gemini_device *pgmn_dev, void __user *to)
 	}
 
 	buf_cmd = buf_p->vbuf;
-	msm_gemini_platform_p2v(buf_p->file, &buf_p->msm_buffer,
-				&buf_p->handle);
-	kfree(buf_p->subsystem_id);
+	msm_gemini_platform_p2v(buf_p->file, &buf_p->handle);
 	kfree(buf_p);
 
 	GMN_DBG("%s:%d] 0x%08x %d\n", __func__, __LINE__,
@@ -361,18 +360,10 @@ int msm_gemini_output_buf_enqueue(struct msm_gemini_device *pgmn_dev,
 	GMN_DBG("%s:%d] 0x%08x %d\n", __func__, __LINE__, (int) buf_cmd.vaddr,
 		buf_cmd.y_len);
 
-	buf_p->subsystem_id = kmalloc(sizeof(int), GFP_ATOMIC);
-	if (!buf_p->subsystem_id) {
-		GMN_PR_ERR("%s:%d] no mem\n", __func__, __LINE__);
-		kfree(buf_p);
-		return -ENOMEM;
-	}
 	buf_p->y_buffer_addr = msm_gemini_platform_v2p(buf_cmd.fd,
-		buf_cmd.y_len, &buf_p->file, &buf_p->msm_buffer,
-		buf_p->subsystem_id, &buf_p->handle);
+		buf_cmd.y_len, &buf_p->file, &buf_p->handle);
 	if (!buf_p->y_buffer_addr) {
 		GMN_PR_ERR("%s:%d] v2p wrong\n", __func__, __LINE__);
-		kfree(buf_p->subsystem_id);
 		kfree(buf_p);
 		return -1;
 	}
@@ -435,9 +426,7 @@ int msm_gemini_input_get(struct msm_gemini_device *pgmn_dev, void __user * to)
 	}
 
 	buf_cmd = buf_p->vbuf;
-	msm_gemini_platform_p2v(buf_p->file, &buf_p->msm_buffer,
-				&buf_p->handle);
-	kfree(buf_p->subsystem_id);
+	msm_gemini_platform_p2v(buf_p->file, &buf_p->handle);
 	kfree(buf_p);
 
 	GMN_DBG("%s:%d] 0x%08x %d\n", __func__, __LINE__,
@@ -478,16 +467,9 @@ int msm_gemini_input_buf_enqueue(struct msm_gemini_device *pgmn_dev,
 	GMN_DBG("%s:%d] 0x%08x %d\n", __func__, __LINE__,
 		(int) buf_cmd.vaddr, buf_cmd.y_len);
 
-	buf_p->subsystem_id = kmalloc(sizeof(int), GFP_ATOMIC);
-	if (!buf_p->subsystem_id) {
-		GMN_PR_ERR("%s:%d] no mem\n", __func__, __LINE__);
-		kfree(buf_p);
-		return -ENOMEM;
-	}
 	buf_p->y_buffer_addr    = msm_gemini_platform_v2p(buf_cmd.fd,
 		buf_cmd.y_len + buf_cmd.cbcr_len, &buf_p->file,
-			&buf_p->msm_buffer, buf_p->subsystem_id, &buf_p->handle)
-			+ buf_cmd.offset;
+		&buf_p->handle)	+ buf_cmd.offset;
 	buf_p->y_len          = buf_cmd.y_len;
 
 	buf_p->cbcr_buffer_addr = buf_p->y_buffer_addr + buf_cmd.y_len;
@@ -497,7 +479,6 @@ int msm_gemini_input_buf_enqueue(struct msm_gemini_device *pgmn_dev,
 
 	if (!buf_p->y_buffer_addr || !buf_p->cbcr_buffer_addr) {
 		GMN_PR_ERR("%s:%d] v2p wrong\n", __func__, __LINE__);
-		kfree(buf_p->subsystem_id);
 		kfree(buf_p);
 		return -1;
 	}

@@ -91,27 +91,9 @@ struct sd_scr {
 };
 
 struct sd_ssr {
-#ifdef CONFIG_MMC_CPRM_SUPPORT
-	/**
-	 *	in case of SDSC, the capacity of protected area = SIZE_OF_PROTECTED_AREA * MULT * BLOCK_LEN
-	 *	here, MULT = 2e(C_SIZE_MULT + 2), BLOCK_LEN = 2eREAD_BL_LEN
-	 *	here, C_SIZE_MULT and READ_BL_LEN are in the CSD register.
-    *
-	 *	in case of SDXC and SDHC, the capacity of protected area = SIZE_OF_PROTECTED_AREA by the unit in byte.
-	 *	tony, 2012-03-26
-	**/
-	unsigned int 		size_of_protected_area;		/* protected area size */
-
-	/**
-	 *	'0' = Not in the mode
-	 *	'1' = in secure mode.
-	 *	For 3 party, tony, 2012-03-26
-	**/
-	unsigned int 		secure_mode;				/* secure mode */
-#endif
-	unsigned int		au;							/* In sectors */
-	unsigned int		erase_timeout;				/* In milliseconds */
-	unsigned int		erase_offset;				/* In milliseconds */
+	unsigned int		au;			/* In sectors */
+	unsigned int		erase_timeout;		/* In milliseconds */
+	unsigned int		erase_offset;		/* In milliseconds */
 };
 
 struct sd_switch_caps {
@@ -181,6 +163,7 @@ struct sdio_func_tuple;
 struct mmc_card {
 	struct mmc_host		*host;		/* the host this device belongs to */
 	struct device		dev;		/* the device */
+	struct device		*mmcblk_dev;/* block device */
 	unsigned int		rca;		/* relative card address of device */
 	unsigned int		type;		/* card type */
 #define MMC_TYPE_MMC		0		/* MMC card */
@@ -224,13 +207,6 @@ struct mmc_card {
 	struct mmc_ext_csd	ext_csd;	/* mmc v4 extended card specific */
 	struct sd_scr		scr;		/* extra SD information */
 	struct sd_ssr		ssr;		/* yet more SD information */
-#ifdef CONFIG_MMC_CPRM_SUPPORT
-	/* For [3 party] tony */
-	u32 ccs;								/* if ccs = 0, SDSC, otherwise if ccs = 1, SDHC or SDXC */
-	u32 capacity_of_protected_area_in_byte;	/* the capacity of procted area, see the "struct sd_ssr" */
-	u32 capacity;							/* the capacity of user data area (not include protected area) KB unit*/
-	/* 2012-03-26 */
-#endif
 	struct sd_switch_caps	sw_caps;	/* switch (CMD6) caps */
 
 	unsigned int		sdio_funcs;	/* number of SDIO functions */
@@ -246,6 +222,7 @@ struct mmc_card {
 
 	struct dentry		*debugfs_root;
 	unsigned int		removed;
+	unsigned int		wr_perf; /* write performance in MB/s */
 };
 
 /*

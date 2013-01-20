@@ -57,10 +57,10 @@
 #define RAWCHIP_IOCTL_SET_DXOPRC_AF_STRATEGY \
 	_IOW(RAWCHIP_IOCTL_MAGIC, 6, struct rawchip_stats_event_ctrl *)
 
-#define RAWCHIP_IOCTL_GET_DXOPRC_VER\
+#define RAWCHIP_IOCTL_GET_DXOPRC_VER \
 	_IOW(RAWCHIP_IOCTL_MAGIC, 7, struct rawchip_stats_event_ctrl *)
 	
-#define RAWCHIP_IOCTL_GET_DXOPRC_FRAMESETTING\
+#define RAWCHIP_IOCTL_GET_DXOPRC_FRAMESETTING \
 	_IOW(RAWCHIP_IOCTL_MAGIC, 8, struct rawchip_stats_event_ctrl *)
 	
 typedef struct
@@ -90,15 +90,6 @@ typedef struct {
 	uint16_t 	udwPDPHwId;
 	uint32_t 	udwPDPCalibId;
 } rawchip_dxo_version;
-
-typedef struct
-{
-	uint32_t 	udwAfStatsGreen;
-	uint32_t 	udwAfStatsRed;
-	uint32_t 	udwAfStatsBlue;
-	uint32_t 	udwAfStatsConfidence;
-	uint16_t  frameIdx;
-}Yushan_AF_Stats_t;
 
 struct rawchip_stats_event_ctrl {
 	uint32_t type;

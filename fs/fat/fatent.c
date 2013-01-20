@@ -541,6 +541,12 @@ out:
 	return err;
 }
 
+struct discard_tb {
+	int nr_clusters;
+	sector_t blknr;
+};
+
+#define MAX_DISCARD_COUNT   5
 int fat_free_clusters(struct inode *inode, int cluster)
 {
 	struct super_block *sb = inode->i_sb;
@@ -550,6 +556,10 @@ int fat_free_clusters(struct inode *inode, int cluster)
 	struct buffer_head *bhs[MAX_BUF_PER_PAGE];
 	int i, err, nr_bhs;
 	int first_cl = cluster;
+	struct discard_tb dis_tb[MAX_DISCARD_COUNT];
+	int tmp_clusters = 0;
+
+	memset(dis_tb, 0, sizeof(struct discard_tb) * MAX_DISCARD_COUNT);
 
 	nr_bhs = 0;
 	fatent_init(&fatent);
@@ -575,10 +585,26 @@ int fat_free_clusters(struct inode *inode, int cluster)
 			if (cluster != fatent.entry + 1) {
 				int nr_clus = fatent.entry - first_cl + 1;
 
-				sb_issue_discard(sb,
+				if (nr_clus > dis_tb[0].nr_clusters) {
+					dis_tb[0].nr_clusters = nr_clus;
+					dis_tb[0].blknr = fat_clus_to_blknr(sbi, first_cl);
+					for (i = 0; i < MAX_DISCARD_COUNT - 1; i ++) {
+						if (dis_tb[i].nr_clusters > dis_tb[i + 1].nr_clusters) {
+							tmp_clusters = dis_tb[i + 1].nr_clusters;
+							dis_tb[i + 1].nr_clusters = dis_tb[i].nr_clusters;
+							dis_tb[i].nr_clusters = tmp_clusters;
+
+							tmp_clusters = dis_tb[i + 1].blknr;
+							dis_tb[i + 1].blknr = dis_tb[i].blknr;
+							dis_tb[i].blknr = tmp_clusters;
+						} else
+							break;
+					}
+				}
+				/* sb_issue_discard(sb,
 					fat_clus_to_blknr(sbi, first_cl),
 					nr_clus * sbi->sec_per_clus,
-					GFP_NOFS, 0);
+					GFP_NOFS, 0); */
 
 				first_cl = cluster;
 			}
@@ -605,6 +631,18 @@ int fat_free_clusters(struct inode *inode, int cluster)
 		}
 		fat_collect_bhs(bhs, &nr_bhs, &fatent);
 	} while (cluster != FAT_ENT_EOF);
+
+	if (sbi->options.discard) {
+		for (i = MAX_DISCARD_COUNT - 1; i >= 0; i --) {
+			if (dis_tb[i].nr_clusters != 0) {
+				sb_issue_discard(sb,
+					dis_tb[i].blknr,
+					dis_tb[i].nr_clusters * sbi->sec_per_clus,
+					GFP_NOFS, 0);
+			} else
+				break;
+		}
+	}
 
 	if (sb->s_flags & MS_SYNCHRONOUS) {
 		err = fat_sync_bhs(bhs, nr_bhs);

@@ -36,6 +36,8 @@
 #define RADIO_FEEDBACK_IOCTL_MAGIC	'p'
 #define RADIO_FEEDBACK_GET_CDLOG_INFO	_IOW(RADIO_FEEDBACK_IOCTL_MAGIC, 89, unsigned)
 
+#define CONFIG_RADIO_FEEDBACK8660		1
+
 #ifdef CONFIG_RADIO_FEEDBACK8660
 typedef struct {
 
@@ -103,7 +105,11 @@ typedef struct {
 	uint32_t		    htc_ciq_flag;
 } htc_smem_type;
 
+#if 1
+#define HTC_SMEM_PARAM_BASE_ADDR  	0x801F0000
+#else
 #define HTC_SMEM_PARAM_BASE_ADDR	0x400F0000
+#endif
 htc_smem_type *htc_smem_ram_addr;
 #else
 #define HTC_SMEM_PARAM_BASE_ADDR	0x004FC000

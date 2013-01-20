@@ -498,6 +498,7 @@ MMC_DEV_ATTR(serial, "0x%08x\n", card->cid.serial);
 MMC_DEV_ATTR(enhanced_area_offset, "%llu\n",
 		card->ext_csd.enhanced_area_offset);
 MMC_DEV_ATTR(enhanced_area_size, "%u\n", card->ext_csd.enhanced_area_size);
+MMC_DEV_ATTR(wr_perf, "%u\n", card->wr_perf);
 
 static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_cid.attr,
@@ -513,6 +514,7 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_serial.attr,
 	&dev_attr_enhanced_area_offset.attr,
 	&dev_attr_enhanced_area_size.attr,
+	&dev_attr_wr_perf.attr,
 	NULL,
 };
 
@@ -726,6 +728,19 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			mmc_card_set_highspeed(card);
 			mmc_set_timing(card->host, MMC_TIMING_MMC_HS);
 		}
+	}
+	if (card->cid.manfid == 0x45) {
+		if ((card->ext_csd.sectors == 31105024) && !strcmp(card->cid.prod_name, "SEM16G"))
+			card->wr_perf = 12;
+		else if ((card->ext_csd.sectors == 62324736) && !strcmp(card->cid.prod_name, "SEM32G"))
+			card->wr_perf = 12;
+	} else if (card->cid.manfid == 0x15) {
+		if ((card->ext_csd.sectors == 30777344) && !strcmp(card->cid.prod_name, "KYL00M"))
+			card->wr_perf = 11;
+		else if ((card->ext_csd.sectors == 62521344) && !strcmp(card->cid.prod_name, "MBG8FA"))
+			card->wr_perf = 11;
+		else if ((card->ext_csd.sectors == 30535680) && !strcmp(card->cid.prod_name, "MAG2GA"))
+			card->wr_perf = 14;
 	}
 
 	/*

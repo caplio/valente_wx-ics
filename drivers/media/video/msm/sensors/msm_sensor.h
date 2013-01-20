@@ -103,10 +103,11 @@ struct msm_sensor_fn_t {
 
 	int32_t (*sensor_set_fps) (struct msm_sensor_ctrl_t *,
 			struct fps_cfg *);
+	int32_t (*sensor_set_dig_gain) (struct msm_sensor_ctrl_t *, uint16_t);
 	int32_t (*sensor_write_exp_gain) (struct msm_sensor_ctrl_t *,
-			int, uint16_t, uint32_t); /* HTC Angie 20111019 - Fix FPS */
+			int, uint16_t, uint16_t, uint32_t); /* HTC Angie 20111019 - Fix FPS */
 	int32_t (*sensor_write_snapshot_exp_gain) (struct msm_sensor_ctrl_t *,
-			int, uint16_t, uint32_t); /* HTC Angie 20111019 - Fix FPS */
+			int, uint16_t, uint16_t, uint32_t); /* HTC Angie 20111019 - Fix FPS */
 	int32_t (*sensor_setting) (struct msm_sensor_ctrl_t *,
 			int update_type, int rt);
 	int32_t (*sensor_set_sensor_mode)
@@ -174,9 +175,9 @@ int32_t msm_sensor_set_fps(struct msm_sensor_ctrl_t *s_ctrl,
 			struct fps_cfg   *fps);
 /* HTC_START Angie 20111019 - Fix FPS */
 int32_t msm_sensor_write_exp_gain1(struct msm_sensor_ctrl_t *s_ctrl,
-		int mode, uint16_t gain, uint32_t line);
+		int mode, uint16_t gain, uint16_t dig_gain, uint32_t line);
 int32_t msm_sensor_write_exp_gain2(struct msm_sensor_ctrl_t *s_ctrl,
-		int mode, uint16_t gain, uint32_t line);
+		int mode, uint16_t gain, uint16_t dig_gain, uint32_t line);
 /* HTC_END */
 int32_t msm_sensor_set_sensor_mode(struct msm_sensor_ctrl_t *s_ctrl,
 	int mode, int res);

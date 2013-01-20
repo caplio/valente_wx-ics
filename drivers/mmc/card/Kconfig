@@ -76,9 +76,3 @@ config MMC_TEST
 
 	  This driver is only of interest to those developing or
 	  testing a host driver. Most people should say N here.
-
-config MMC_CPRM_SUPPORT
-	bool "MMC CPRM support"
-	default n
-	help
-		Projects for Japan will need to support CPRM

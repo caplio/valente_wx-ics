@@ -821,11 +821,12 @@ int htc_battery_core_update_changed(void)
 	battery_core_info.update_time = jiffies;
 	mutex_unlock(&battery_core_info.info_lock);
 
-	BATT_LOG("ID=%d, level=%d, vol=%d, temp=%d, current=%d, "
-		"chg_src=%d, chg_en=%d, full_bat=%d, over_vchg=%d, "
-		"batt_state=%d, overload=%d",
+	BATT_LOG("ID=%d,level=%d,level_raw=%d,vol=%d,temp=%d,current=%d,"
+		"chg_src=%d,chg_en=%d,full_bat=%d,over_vchg=%d,"
+		"batt_state=%d,overload=%d",
 			battery_core_info.rep.batt_id,
 			battery_core_info.rep.level,
+			battery_core_info.rep.level_raw,
 			battery_core_info.rep.batt_vol,
 			battery_core_info.rep.batt_temp,
 			battery_core_info.rep.batt_current,
@@ -924,6 +925,7 @@ int htc_battery_core_register(struct device *dev,
 	battery_core_info.rep.batt_temp = 285;
 	battery_core_info.rep.batt_current = 162;
 	battery_core_info.rep.level = 66;
+	battery_core_info.rep.level_raw = 0;
 	battery_core_info.rep.full_bat = 1580000;
 	battery_core_info.rep.full_level = 100;
 	/* initial state = -1, valid values: 0 or 1 */

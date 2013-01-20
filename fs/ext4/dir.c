@@ -28,6 +28,7 @@
 #include <linux/rbtree.h>
 #include "ext4.h"
 
+#include <trace/events/mmcio.h>
 static unsigned char ext4_filetype_table[] = {
 	DT_UNKNOWN, DT_REG, DT_DIR, DT_CHR, DT_BLK, DT_FIFO, DT_SOCK, DT_LNK
 };
@@ -120,6 +121,7 @@ static int ext4_readdir(struct file *filp,
 	struct inode *inode = filp->f_path.dentry->d_inode;
 	int ret = 0;
 	int dir_has_error = 0;
+	int trace = 0;
 
 	sb = inode->i_sb;
 
@@ -152,13 +154,17 @@ static int ext4_readdir(struct file *filp,
 		if (err > 0) {
 			pgoff_t index = map.m_pblk >>
 					(PAGE_CACHE_SHIFT - inode->i_blkbits);
-			if (!ra_has_index(&filp->f_ra, index))
+			if (!ra_has_index(&filp->f_ra, index)) {
+				trace = 1;
 				page_cache_sync_readahead(
 					sb->s_bdev->bd_inode->i_mapping,
 					&filp->f_ra, filp,
 					index, 1);
+			}
 			filp->f_ra.prev_pos = (loff_t)index << PAGE_CACHE_SHIFT;
 			bh = ext4_bread(NULL, inode, map.m_lblk, 0, &err);
+			if (trace)
+				trace_readahead_exit(filp);
 		}
 
 		/*

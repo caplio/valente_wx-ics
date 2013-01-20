@@ -78,6 +78,7 @@ int mdp_lcdc_on(struct platform_device *pdev)
 	int hsync_start_x;
 	int hsync_end_x;
 	uint8 *buf;
+	unsigned int buf_offset;
 	int bpp, ptype;
 	struct fb_info *fbi;
 	struct fb_var_screeninfo *var;
@@ -105,16 +106,22 @@ int mdp_lcdc_on(struct platform_device *pdev)
 
 	bpp = fbi->var.bits_per_pixel / 8;
 	buf = (uint8 *) fbi->fix.smem_start;
-	buf += fbi->var.xoffset * bpp +
+	buf_offset = fbi->var.xoffset * bpp +
 		fbi->var.yoffset * fbi->fix.line_length;
 
-	if (lcdc_pipe == NULL) {
+	if (unlikely(lcdc_pipe == NULL)) {
 		ptype = mdp4_overlay_format2type(mfd->fb_imgType);
-		if (ptype < 0)
-			printk(KERN_INFO "%s: format2type failed\n", __func__);
+		if (unlikely(ptype < 0)) {
+			printk(KERN_ERR "%s: format2type failed\n", __func__);
+			mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+			return -EINVAL;
+		}
 		pipe = mdp4_overlay_pipe_alloc(ptype, MDP4_MIXER0);
-		if (pipe == NULL)
-			printk(KERN_INFO "%s: pipe_alloc failed\n", __func__);
+		if (unlikely(pipe == NULL)) {
+			printk(KERN_ERR "%s: pipe_alloc failed\n", __func__);
+			mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+			return -EPIPE;
+		}
 		pipe->pipe_used++;
 		pipe->mixer_stage  = MDP4_MIXER_STAGE_BASE;
 		pipe->mixer_num  = MDP4_MIXER0;
@@ -139,7 +146,15 @@ int mdp_lcdc_on(struct platform_device *pdev)
 	pipe->src_w = fbi->var.xres;
 	pipe->src_y = 0;
 	pipe->src_x = 0;
-	pipe->srcp0_addr = (uint32) buf;
+	if (mfd->map_buffer) {
+		pipe->srcp0_addr = (unsigned int)mfd->map_buffer->iova[0] + \
+			buf_offset;
+		pr_debug("start 0x%lx srcp0_addr 0x%x\n", mfd->
+			map_buffer->iova[0], pipe->srcp0_addr);
+	} else {
+		pipe->srcp0_addr = (uint32)(buf + buf_offset);
+	}
+
 	pipe->srcp0_ystride = fbi->fix.line_length;
 	pipe->bpp = bpp;
 
@@ -275,8 +290,10 @@ int mdp_lcdc_off(struct platform_device *pdev)
 
 #ifdef LCDC_RGB_UNSTAGE
 	/* dis-engage rgb0 from mixer0 */
-	if (lcdc_pipe)
+	if (lcdc_pipe) {
 		mdp4_mixer_stage_down(lcdc_pipe);
+		mdp4_iommu_unmap(lcdc_pipe);
+	}
 #endif
 #ifdef CONFIG_MSM_BUS_SCALING
 	mdp_bus_scale_update_request(0);
@@ -524,6 +541,7 @@ void mdp4_lcdc_overlay(struct msm_fb_data_type *mfd)
 {
 	struct fb_info *fbi = mfd->fbi;
 	uint8 *buf;
+	unsigned int buf_offset;
 	int bpp;
 	struct mdp4_overlay_pipe *pipe;
 
@@ -533,15 +551,23 @@ void mdp4_lcdc_overlay(struct msm_fb_data_type *mfd)
 	/* no need to power on cmd block since it's lcdc mode */
 	bpp = fbi->var.bits_per_pixel / 8;
 	buf = (uint8 *) fbi->fix.smem_start;
-	buf += fbi->var.xoffset * bpp +
+	buf_offset = fbi->var.xoffset * bpp +
 		fbi->var.yoffset * fbi->fix.line_length;
 
 	mutex_lock(&mfd->dma->ov_mutex);
 
 	pipe = lcdc_pipe;
-	pipe->srcp0_addr = (uint32) buf;
+	if (mfd->map_buffer) {
+		pipe->srcp0_addr = (unsigned int)mfd->map_buffer->iova[0] + \
+			buf_offset;
+		pr_debug("start 0x%lx srcp0_addr 0x%x\n", mfd->
+			map_buffer->iova[0], pipe->srcp0_addr);
+	} else {
+		pipe->srcp0_addr = (uint32)(buf + buf_offset);
+	}
 	mdp4_overlay_rgb_setup(pipe);
 	mdp4_overlay_reg_flush(pipe, 1);
 	mdp4_overlay_lcdc_vsync_push(mfd, pipe);
+	mdp4_iommu_unmap(pipe);
 	mutex_unlock(&mfd->dma->ov_mutex);
 }

@@ -52,6 +52,9 @@
 #define CS_KEY_4		(0x04)
 #define CS_KEY_3		(0x03)
 
+/*Func support*/
+#define CS_FUNC_PRINTRAW	(0x01)
+
 #define ENABLE_CAP_ONLY_3KEY   1        /* 1:Enable 0:Disable. Let cap only support 3Key.*/
 
 struct infor {
@@ -68,6 +71,7 @@ struct cy8c_i2c_cs_platform_data {
 	int 	(*reset)(void);
 	int	keycode[4];
 	void 	(*gpio_init)(void);
+	int 	func_support;
 	int     prj_info;
 };
 

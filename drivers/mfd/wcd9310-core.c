@@ -25,6 +25,13 @@
 #include <linux/i2c.h>
 #include <sound/soc.h>
 
+//htc audio ++
+#undef pr_info
+#undef pr_err
+#define pr_info(fmt, ...) pr_aud_info(fmt, ##__VA_ARGS__)
+#define pr_err(fmt, ...) pr_aud_err(fmt, ##__VA_ARGS__)
+//htc audio --
+
 #define TABLA_SLIM_GLA_MAX_RETRIES 5
 #define TABLA_REGISTER_START_OFFSET 0x800
 #define TABLA_SLIM_RW_MAX_TRIES 3

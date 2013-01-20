@@ -15,8 +15,8 @@
 
 #include <linux/idr.h>
 #include <linux/wakelock.h>
-#include <linux/earlysuspend.h>
 #include <linux/pm_qos_params.h>
+#include <linux/earlysuspend.h>
 
 #include "kgsl.h"
 #include "kgsl_mmu.h"
@@ -96,7 +96,8 @@ struct kgsl_functable {
 	/* Optional functions - these functions are not mandatory.  The
 	   driver will check that the function pointer is not NULL before
 	   calling the hook */
-	void (*setstate) (struct kgsl_device *device, uint32_t flags);
+	void (*setstate) (struct kgsl_device *device, unsigned int context_id,
+			uint32_t flags);
 	int (*drawctxt_create) (struct kgsl_device *device,
 		struct kgsl_pagetable *pagetable, struct kgsl_context *context,
 		uint32_t flags);
@@ -130,6 +131,10 @@ struct kgsl_event {
 	struct kgsl_device_private *owner;
 };
 
+struct kgsl_gpubusy {
+	s64 busy;
+	s64 total;
+};
 
 struct kgsl_device {
 	struct device *dev;
@@ -175,6 +180,7 @@ struct kgsl_device {
 	int snapshot_frozen;	/* 1 if the snapshot output is frozen until
 				   it gets read by the user.  This avoids
 				   losing the output on multiple hangs  */
+	int snapshot_no_panic;	/* HTC: deprecate kernel panic after GPU HANG if 1 */
 	struct kobject snapshot_kobj;
 
 	/* Logging levels */
@@ -186,9 +192,14 @@ struct kgsl_device {
 	struct wake_lock idle_wakelock;
 	struct kgsl_pwrscale pwrscale;
 	struct kobject pwrscale_kobj;
+	struct pm_qos_request_list pm_qos_req_dma;
 	struct work_struct ts_expired_ws;
 	struct list_head events;
 	s64 on_time;
+
+	/* gpu busy time */
+	struct kgsl_gpubusy gputime;
+	struct kgsl_gpubusy gputime_in_state[KGSL_MAX_PWRLEVELS];
 };
 
 struct kgsl_context {
@@ -199,6 +210,11 @@ struct kgsl_context {
 
 	/* Pointer to the device specific context information */
 	void *devctxt;
+	/*
+	 * Status indicating whether a gpu reset occurred and whether this
+	 * context was responsible for causing it
+	 */
+	unsigned int reset_status;
 };
 
 struct kgsl_process_private {

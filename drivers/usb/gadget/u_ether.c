@@ -31,6 +31,9 @@
 
 #include "u_ether.h"
 
+#ifdef CONFIG_USB_ETH_PASS_FW
+#include "passthru.h"
+#endif
 
 /*
  * This component encapsulates the Ethernet link glue needed to provide
@@ -67,7 +70,7 @@ struct eth_dev {
 
 	spinlock_t		req_lock;	/* guard {rx,tx}_reqs */
 	struct list_head	tx_reqs, rx_reqs;
-	atomic_t		tx_qlen;
+	unsigned		tx_qlen;
 
 	struct sk_buff_head	rx_frames;
 
@@ -111,6 +114,13 @@ static inline int qlen(struct usb_gadget *gadget)
 	else
 		return DEFAULT_QLEN;
 }
+
+/*-------------------------------------------------------------------------*/
+#ifdef CONFIG_USB_ETH_PASS_FW
+static unsigned ipt_cap = 0;
+module_param(ipt_cap, uint, S_IRUGO|S_IWUSR);
+MODULE_PARM_DESC(ipt_cap, "Enable IPT encapsulation");
+#endif
 
 /*-------------------------------------------------------------------------*/
 
@@ -316,6 +326,11 @@ static void rx_complete(struct usb_ep *ep, struct usb_request *req)
 				dev_kfree_skb_any(skb2);
 				goto next_frame;
 			}
+
+#ifdef CONFIG_USB_ETH_PASS_FW
+			ipt_decap_packet(skb2, ipt_cap);
+#endif
+
 			skb2->protocol = eth_type_trans(skb2, dev->net);
 			dev->net->stats.rx_packets++;
 			dev->net->stats.rx_bytes += skb2->len;
@@ -485,7 +500,6 @@ static void tx_complete(struct usb_ep *ep, struct usb_request *req)
 	spin_unlock(&dev->req_lock);
 	dev_kfree_skb_any(skb);
 
-	atomic_dec(&dev->tx_qlen);
 	if (netif_carrier_ok(dev->net))
 		netif_wake_queue(dev->net);
 }
@@ -542,6 +556,11 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 		}
 		/* ignores USB_CDC_PACKET_TYPE_DIRECTED */
 	}
+
+#ifdef CONFIG_USB_ETH_PASS_FW
+	if (ipt_encap_packet(skb, ipt_cap))
+		return NETDEV_TX_OK;
+#endif
 
 	spin_lock_irqsave(&dev->req_lock, flags);
 	/*
@@ -600,10 +619,18 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	req->length = length;
 
 	/* throttle highspeed IRQ rate back slightly */
-	if (gadget_is_dualspeed(dev->gadget))
-		req->no_interrupt = (dev->gadget->speed == USB_SPEED_HIGH)
-			? ((atomic_read(&dev->tx_qlen) % qmult) != 0)
-			: 0;
+	if (gadget_is_dualspeed(dev->gadget) &&
+			 (dev->gadget->speed == USB_SPEED_HIGH)) {
+		dev->tx_qlen++;
+		if (dev->tx_qlen == qmult) {
+			req->no_interrupt = 0;
+			dev->tx_qlen = 0;
+		} else {
+			req->no_interrupt = 1;
+		}
+	} else {
+		req->no_interrupt = 0;
+	}
 
 	retval = usb_ep_queue(in, req, GFP_ATOMIC);
 	switch (retval) {
@@ -612,7 +639,6 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 		break;
 	case 0:
 		net->trans_start = jiffies;
-		atomic_inc(&dev->tx_qlen);
 	}
 
 	if (retval) {
@@ -638,7 +664,7 @@ static void eth_start(struct eth_dev *dev, gfp_t gfp_flags)
 	rx_fill(dev, gfp_flags);
 
 	/* and open the tx floodgates */
-	atomic_set(&dev->tx_qlen, 0);
+	dev->tx_qlen = 0;
 	netif_wake_queue(dev->net);
 }
 
@@ -657,6 +683,10 @@ static int eth_open(struct net_device *net)
 		link->open(link);
 	spin_unlock_irq(&dev->lock);
 
+#ifdef CONFIG_USB_ETH_PASS_FW
+	ipt_open(net);
+#endif
+
 	return 0;
 }
 
@@ -664,6 +694,11 @@ static int eth_stop(struct net_device *net)
 {
 	struct eth_dev	*dev = netdev_priv(net);
 	unsigned long	flags;
+
+#ifdef CONFIG_USB_ETH_PASS_FW
+	ipt_close();
+    ipt_cap = 0;
+#endif
 
 	VDBG(dev, "%s\n", __func__);
 	netif_stop_queue(net);

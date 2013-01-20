@@ -179,7 +179,7 @@ inline void notify_modem_cache_flush_done(void)
 	modem_cache_flush_done = 1;
 }
 
- inline unsigned get_restart_reason(void)
+ unsigned get_restart_reason(void)
 {
 	return reboot_params->reboot_reason;
 }
@@ -214,7 +214,7 @@ static void msm_pm_flush_console(void)
 	console_flushed = true;
 
 	printk("\n");
-	printk(KERN_EMERG "Restarting %s\n", linux_banner);
+	printk(KERN_EMERG "[K] Restarting %s\n", linux_banner);
 	if (!console_trylock()) {
 		console_unlock();
 		return;
@@ -224,9 +224,9 @@ static void msm_pm_flush_console(void)
 
 	local_irq_disable();
 	if (console_trylock())
-		printk(KERN_EMERG "restart: Console was locked! Busting\n");
+		printk(KERN_EMERG "[K] restart: Console was locked! Busting\n");
 	else
-		printk(KERN_EMERG "restart: Console was locked!\n");
+		printk(KERN_EMERG "[K] restart: Console was locked!\n");
 	console_unlock();
 }
 
@@ -249,7 +249,7 @@ void set_ramdump_reason(const char *msg)
 static void set_modem_efs_sync(void)
 {
 	smsm_change_state(SMSM_APPS_STATE, SMSM_APPS_REBOOT, SMSM_APPS_REBOOT);
-	printk(KERN_INFO "%s: wait for modem efs_sync\n", __func__);
+	printk(KERN_INFO "[K] %s: wait for modem efs_sync\n", __func__);
 }
 
 static int check_modem_efs_sync(void)
@@ -322,7 +322,7 @@ static int notify_efs_sync_set(const char *val, struct kernel_param *kp)
 
 static void __msm_power_off(int lower_pshold)
 {
-	printk(KERN_CRIT "Powering off the SoC\n");
+	printk(KERN_CRIT "[K] Powering off the SoC\n");
 #ifdef CONFIG_MSM_DLOAD_MODE
 	set_dload_mode(0);
 #endif
@@ -350,7 +350,7 @@ static void __msm_power_off(int lower_pshold)
 	if (lower_pshold) {
 		__raw_writel(0, PSHOLD_CTL_SU);
 		mdelay(10000);
-		printk(KERN_ERR "Powering off has failed\n");
+		printk(KERN_ERR "[K] Powering off has failed\n");
 	}
 	return;
 }
@@ -391,7 +391,7 @@ static void cpu_power_off(void *data)
 
 static irqreturn_t resout_irq_handler(int irq, void *dev_id)
 {
-	pr_warn("%s PMIC Initiated shutdown\n", __func__);
+	pr_warn("[K] %s PMIC Initiated shutdown\n", __func__);
 	oops_in_progress = 1;
 	smp_call_function_many(cpu_online_mask, cpu_power_off, NULL, 0);
 	if (smp_processor_id() == 0)
@@ -432,16 +432,16 @@ void arch_reset(char mode, const char *cmd)
 		set_dload_mode(0);
 #endif
 
-	printk(KERN_NOTICE "Going down for restart now\n");
-	printk(KERN_NOTICE "%s: mode %d\n", __func__, mode);
+	printk(KERN_NOTICE "[K] Going down for restart now\n");
+	printk(KERN_NOTICE "[K] %s: mode %d\n", __func__, mode);
 	if (cmd) {
-		printk(KERN_NOTICE "%s: restart command `%s'.\n", __func__, cmd);
+		printk(KERN_NOTICE "[K] %s: restart command `%s'.\n", __func__, cmd);
 		/* XXX: modem will set msg itself.
 			Dying msg should be passed to this function directly. */
 		if (mode != RESTART_MODE_MODEM_CRASH)
 			set_restart_msg(cmd);
 	} else
-		printk(KERN_NOTICE "%s: no command restart.\n", __func__);
+		printk(KERN_NOTICE "[K] %s: no command restart.\n", __func__);
 
 	if (cpu_is_msm8x60())
 		pm8058_reset_pwr_off(1);
@@ -468,8 +468,8 @@ void arch_reset(char mode, const char *cmd)
 	} else if (!strncmp(cmd, "oem-", 4)) {
 		oem_code = simple_strtoul(cmd + 4, 0, 16) & 0xff;
 
-		/* oem-96, 97, 98, 99 are RIL fatal */
-		if ((oem_code == 0x96) || (oem_code == 0x97) || (oem_code == 0x98)) {
+		/* oem-94, 95, 96, 97, 98, 99 are RIL fatal */
+		if ((oem_code == 0x94) || (oem_code == 0x95) || (oem_code == 0x96) || (oem_code == 0x97) || (oem_code == 0x98)) {
 			oem_code = 0x99;
 			/* RIL fatals will enter ramdump */
 			ramdump_reboot = 1;
@@ -519,7 +519,7 @@ void arch_reset(char mode, const char *cmd)
 		mb();
 		__raw_writel(0, PSHOLD_CTL_SU); /* Actually reset the chip */
 		mdelay(5000);
-		pr_notice("PS_HOLD didn't work, falling back to watchdog\n");
+		pr_notice("[K] PS_HOLD didn't work, falling back to watchdog\n");
 	}
 
 	__raw_writel(1, msm_tmr0_base + WDT0_RST);
@@ -528,7 +528,7 @@ void arch_reset(char mode, const char *cmd)
 	__raw_writel(1, msm_tmr0_base + WDT0_EN);
 
 	mdelay(10000);
-	printk(KERN_ERR "Restarting has failed\n");
+	printk(KERN_ERR "[K] Restarting has failed\n");
 }
 
 

@@ -20,7 +20,7 @@ static int mmc_wimax_is_gpio_irq_enabled = 0;
 static int mmc_wimax_RD_FIFO_LEVEL_ERROR = 0;
 static int mmc_wimax_FW_freeze_WK_RX = 1;
 static int mmc_wimax_FW_freeze_WK_TX = 0;
-static int mmc_wimax_disable_irq_config = 2; /* 0:disbale this feature 1:disable irq when system suspend 2:Disable IRQ when WiMAX CLK off*/
+static int mmc_wimax_disable_irq_config = 1; /* 0:disbale this feature 1:disable irq when system suspend 2:Disable IRQ when WiMAX CLK off*/
 
 static int mmc_wimax_FWWakeupHostEvent = 0; /* RX wakeup */
 static int mmc_wimax_HostWakeupFWEvent = 0; /* TX wakeup */
