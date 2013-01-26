@@ -79,8 +79,11 @@ GTAGS
 *.orig
 *~
 \#*#
-output/*
+output/*.img
+output/*.log
 make*.log
 
 *.log
 out
+!boot.img-ramdisk/vendor/*.ko
+
